@@ -1,3 +1,13 @@
+--[[
+    StateMachine is a table
+    the key "STATE" stores the STATE of Lina 
+    other key value pairs: key is the string of state value is the function of the State. 
+
+    each frame DOTA2 will call Think()
+    Then Think() will call the function of current state.
+]]
+
+
 STATE_IDLE = "STATE_IDLE";
 STATE_ATTACKING_CREEP = "STATE_ATTACKING_CREEP";
 STATE_KILL = "STATE_KILL";
@@ -8,6 +18,8 @@ STATE_GOTO_COMFORT_POINT = "STATE_GOTO_COMFORT_POINT";
 LinaRetreatThreshold = 0.5
 
 STATE = STATE_IDLE;
+
+
 
 
 
@@ -22,6 +34,9 @@ function StateIdle(StateMachine)
 
     if(npcBot:GetHealth()/npcBot:GetMaxHealth() < LinaRetreatThreshold) then
         StateMachine.State = STATE_RETREAT;
+        --[[
+            I don't know how to Create a object of Location so I borrow one from GetLocation()
+        ]]
         home_pos = npcBot:GetLocation();
         home_pos[1] = -7000.0;
         home_pos[2] = -7000.0;
@@ -173,14 +188,19 @@ end
 
 function ConsiderAttackCreeps(creeps)
     -- there are creeps try to attack them --
+    print("ConsiderAttackCreeps");
     local npcBot = GetBot();
     local lowest_hp = 100000;
     for creep_k,creep in pairs(creeps)
     do 
         --npcBot:GetEstimatedDamageToTarget
         local creep_name = creep:GetUnitName();
+        -- "bad" means "dire" and "good" means "radian"
         local badpos = string.find( creep_name,"bad");
-        if(badpos ~= nil) then
+        if(creep:IsAlive() == false) then
+            print("dead creep");
+        end
+        if(badpos ~= nil and creep:IsAlive()) then
              local creep_hp = creep:GetHealth();
              if(lowest_hp > creep_hp) then
                  lowest_hp = creep_hp;
@@ -190,11 +210,16 @@ function ConsiderAttackCreeps(creeps)
     end
 
     if(weakest_creep ~= nil) then
-        if(Attacking_creep ~= weakest_creep) then
+        -- if creep's hp is lower than 70(because I don't Know how much is my damadge!!), try to last hit it.
+        if(Attacking_creep ~= weakest_creep and lowest_hp < 70) then
             Attacking_creep = weakest_creep;
             npcBot:Action_AttackUnit(Attacking_creep,true);
             StateMachine.State = STATE_ATTACKING_CREEP;
         end
+    end
+
+    if(Attacking_creep ~= nil and Attacking_creep:IsAlive() == false)then
+        Attacking_creep = nil;
     end
 
     weakest_creep = nil;
@@ -215,7 +240,8 @@ function GetComfortPoint(creeps)
     do
         local creep_name = creep:GetUnitName();
         local meleepos = string.find( creep_name,"melee");
-        if(meleepos ~= nil) then
+        --if(meleepos ~= nil) then
+        if(true) then
             creep_pos = creep:GetLocation();
             x_pos_sum = x_pos_sum + creep_pos[1];
             y_pos_sum = y_pos_sum + creep_pos[2];
