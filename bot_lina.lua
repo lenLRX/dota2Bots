@@ -2,6 +2,8 @@ STATE_IDLE = "STATE_IDLE";
 STATE_ATTACKING_CREEP = "STATE_ATTACKING_CREEP";
 STATE_KILL = "STATE_KILL";
 STATE_RETREAT = "STATE_RETREAT";
+STATE_FARMING = "STATE_FARMING";
+STATE_GOTO_COMFORT_POINT = "STATE_GOTO_COMFORT_POINT";
 
 LinaRetreatThreshold = 0.5
 
@@ -16,19 +18,26 @@ function StateIdle(StateMachine)
     end
 
     local creeps = npcBot:GetNearbyCreeps(800,true);
+    local pt = GetComfortPoint(creeps);
 
     if(npcBot:GetHealth()/npcBot:GetMaxHealth() < LinaRetreatThreshold) then
         StateMachine.State = STATE_RETREAT;
-        local LocationMetaTable = getmetatable(npcBot:GetLocation());
         home_pos = npcBot:GetLocation();
         home_pos[1] = -7000.0;
         home_pos[2] = -7000.0;
         npcBot:Action_MoveToLocation(home_pos);
         return;
-    elseif(#creeps > 0) then
-        ConsiderAttackCreeps(creeps);
+    elseif(#creeps > 0 and pt ~= nil) then
+        local mypos = npcBot:GetLocation();
+        local pt = GetComfortPoint(creeps);
+        local d = dist2d({mypos[1],mypos[2]},pt);
+        print("distance: " .. d);
+        if(d > 200) then
+            StateMachine.State = STATE_GOTO_COMFORT_POINT;
+        else
+            StateMachine.State = STATE_ATTACKING_CREEP;
+        end
     else
-        local LocationMetaTable = getmetatable(npcBot:GetLocation());
         middle_point = npcBot:GetLocation();
         middle_point[1] = 1.0;
         middle_point[2] = 1.0;
@@ -45,19 +54,26 @@ function StateAttackingCreep(StateMachine)
     end
 
     local creeps = npcBot:GetNearbyCreeps(800,true);
+    local pt = GetComfortPoint(creeps);
 
     if(npcBot:GetHealth()/npcBot:GetMaxHealth() < LinaRetreatThreshold) then
         StateMachine.State = STATE_RETREAT;
-        local LocationMetaTable = getmetatable(npcBot:GetLocation());
         home_pos = npcBot:GetLocation();
         home_pos[1] = -7000.0;
         home_pos[2] = -7000.0;
         npcBot:Action_MoveToLocation(home_pos);
         return;
-    elseif(#creeps > 0) then
-        ConsiderAttackCreeps(creeps);
+    elseif(#creeps > 0 and pt ~= nil) then
+        local mypos = npcBot:GetLocation();
+        local pt = GetComfortPoint(creeps);
+        local d = dist2d({mypos[1],mypos[2]},pt);
+        print("distance: " .. d);
+        if(d > 200) then
+            StateMachine.State = STATE_GOTO_COMFORT_POINT;
+        else
+            ConsiderAttackCreeps(creeps);
+        end
     else
-        local LocationMetaTable = getmetatable(npcBot:GetLocation());
         middle_point = npcBot:GetLocation();
         middle_point[1] = 1.0;
         middle_point[2] = 1.0;
@@ -79,11 +95,63 @@ function StateRetreat(StateMachine)
     end
 end
 
+function StateGotoComfortPoint(StateMachine)
+    local npcBot = GetBot();
+    if(npcBot:IsAlive() == false) then
+        StateMachine.State = STATE_IDLE;
+        return;
+    end
+
+    local creeps = npcBot:GetNearbyCreeps(800,true);
+    local pt = GetComfortPoint(creeps);
+
+    if(npcBot:GetHealth()/npcBot:GetMaxHealth() < LinaRetreatThreshold) then
+        StateMachine.State = STATE_RETREAT;
+        home_pos = npcBot:GetLocation();
+        home_pos[1] = -7000.0;
+        home_pos[2] = -7000.0;
+        npcBot:Action_MoveToLocation(home_pos);
+        return;
+    elseif(#creeps > 0 and pt ~= nil) then
+        local mypos = npcBot:GetLocation();
+            
+        local d = dist2d({mypos[1],mypos[2]},pt);
+        print("distance: " .. d);
+        if(d > 200) then
+            local comfort_pt = mypos;
+            comfort_pt[1] = pt[1];
+            comfort_pt[2] = pt[2];
+            print("mypos "..mypos[1]..mypos[2]);
+            print("comfort_pt "..comfort_pt[1]..comfort_pt[2]);
+            npcBot:Action_MoveToLocation(comfort_pt);
+        else
+            StateMachine.State = STATE_ATTACKING_CREEP;
+        end
+    else
+        middle_point = npcBot:GetLocation();
+        middle_point[1] = 1.0;
+        middle_point[2] = 1.0;
+        npcBot:Action_AttackMove(middle_point);
+        StateMachine.State = STATE_IDLE;
+    end
+
+end
+
+-- useless now ignore it
+function StateFarming(StateMachine)
+    local npcBot = GetBot();
+    if(npcBot:IsAlive() == false) then
+        StateMachine.State = STATE_IDLE;
+        return;
+    end
+end
+
 StateMachine = {};
 StateMachine["State"] = STATE_IDLE;
 StateMachine[STATE_IDLE] = StateIdle;
 StateMachine[STATE_ATTACKING_CREEP] = StateAttackingCreep;
 StateMachine[STATE_RETREAT] = StateRetreat;
+StateMachine[STATE_GOTO_COMFORT_POINT] = StateGotoComfortPoint;
 
 function ThinkLvlupAbility()
     -- Is there a bug? http://dev.dota2.com/showthread.php?t=274436
@@ -135,4 +203,38 @@ end
 function CanLastHitTarget(target)
     local npcBot = GetBot();
     local damage = npcBot:GetEstimatedDamageToTarget(target);
+end
+
+function GetComfortPoint(creeps)
+    local npcBot = GetBot();
+    local mypos = npcBot:GetLocation();
+    local x_pos_sum = 0;
+    local y_pos_sum = 0;
+    local count = 0;
+    for creep_k,creep in pairs(creeps)
+    do
+        local creep_name = creep:GetUnitName();
+        local meleepos = string.find( creep_name,"melee");
+        if(meleepos ~= nil) then
+            creep_pos = creep:GetLocation();
+            x_pos_sum = x_pos_sum + creep_pos[1];
+            y_pos_sum = y_pos_sum + creep_pos[2];
+            count = count + 1;
+        end
+    end
+
+    local avg_pos_x = x_pos_sum / count;
+    local avg_pos_y = y_pos_sum / count;
+
+    if(count > 0) then
+        -- I assume ComfortPoint is 600 from the avg point 
+        print("avg_pos : " .. avg_pos_x .. " , " .. avg_pos_y);
+        return {avg_pos_x - 600 / 1.414,avg_pos_y - 600 / 1.414};
+    else
+        return nil;
+    end;
+end
+
+function dist2d(pt1,pt2)
+    return math.sqrt((pt1[1] - pt2[1]) * (pt1[1] - pt2[1]) + (pt1[2] - pt2[2]) * (pt1[2] - pt2[2]));
 end
