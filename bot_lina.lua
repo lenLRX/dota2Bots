@@ -7,6 +7,7 @@
     Then Think() will call the function of current state.
 ]]
 
+ValveAbilityUse = require(GetScriptDirectory().."/dev/ability_item_usage_lina");
 
 STATE_IDLE = "STATE_IDLE";
 STATE_ATTACKING_CREEP = "STATE_ATTACKING_CREEP";
@@ -34,30 +35,22 @@ function StateIdle(StateMachine)
 
     if(npcBot:GetHealth()/npcBot:GetMaxHealth() < LinaRetreatThreshold) then
         StateMachine.State = STATE_RETREAT;
-        --[[
-            I don't know how to Create a object of Location so I borrow one from GetLocation()
-        ]]
-        home_pos = npcBot:GetLocation();
-        home_pos[1] = -7000.0;
-        home_pos[2] = -7000.0;
-        npcBot:Action_MoveToLocation(home_pos);
         return;
     elseif(#creeps > 0 and pt ~= nil) then
         local mypos = npcBot:GetLocation();
-        local pt = GetComfortPoint(creeps);
-        local d = dist2d({mypos[1],mypos[2]},pt);
+        
+        local d = GetUnitToLocationDistance(npcBot,pt);
         print("distance: " .. d);
         if(d > 200) then
             StateMachine.State = STATE_GOTO_COMFORT_POINT;
         else
             StateMachine.State = STATE_ATTACKING_CREEP;
         end
-    else
-        middle_point = npcBot:GetLocation();
-        middle_point[1] = 1.0;
-        middle_point[2] = 1.0;
-        npcBot:Action_AttackMove(middle_point);
+        return;
     end
+
+    middle_point = Vector(0,0);
+    npcBot:Action_AttackMove(middle_point);
 
 end
 
@@ -73,27 +66,21 @@ function StateAttackingCreep(StateMachine)
 
     if(npcBot:GetHealth()/npcBot:GetMaxHealth() < LinaRetreatThreshold) then
         StateMachine.State = STATE_RETREAT;
-        home_pos = npcBot:GetLocation();
-        home_pos[1] = -7000.0;
-        home_pos[2] = -7000.0;
-        npcBot:Action_MoveToLocation(home_pos);
         return;
     elseif(#creeps > 0 and pt ~= nil) then
         local mypos = npcBot:GetLocation();
-        local pt = GetComfortPoint(creeps);
-        local d = dist2d({mypos[1],mypos[2]},pt);
+        
+        local d = GetUnitToLocationDistance(npcBot,pt);
         print("distance: " .. d);
         if(d > 200) then
             StateMachine.State = STATE_GOTO_COMFORT_POINT;
         else
             ConsiderAttackCreeps(creeps);
         end
+        return;
     else
-        middle_point = npcBot:GetLocation();
-        middle_point[1] = 1.0;
-        middle_point[2] = 1.0;
-        npcBot:Action_AttackMove(middle_point);
         StateMachine.State = STATE_IDLE;
+        return;
     end
 end
 
@@ -103,6 +90,14 @@ function StateRetreat(StateMachine)
         StateMachine.State = STATE_IDLE;
         return;
     end
+
+    --[[
+            I don't know how to Create a object of Location so I borrow one from GetLocation()
+
+            Got Vector from marko.polo at http://dev.dota2.com/showthread.php?t=274301
+    ]]
+    home_pos = Vector(-7000,-7000);
+    npcBot:Action_MoveToLocation(home_pos);
 
     if(npcBot:GetHealth() == npcBot:GetMaxHealth()) then
         StateMachine.State = STATE_IDLE;
@@ -122,32 +117,23 @@ function StateGotoComfortPoint(StateMachine)
 
     if(npcBot:GetHealth()/npcBot:GetMaxHealth() < LinaRetreatThreshold) then
         StateMachine.State = STATE_RETREAT;
-        home_pos = npcBot:GetLocation();
-        home_pos[1] = -7000.0;
-        home_pos[2] = -7000.0;
-        npcBot:Action_MoveToLocation(home_pos);
         return;
     elseif(#creeps > 0 and pt ~= nil) then
         local mypos = npcBot:GetLocation();
-            
-        local d = dist2d({mypos[1],mypos[2]},pt);
+        
+        local d = GetUnitToLocationDistance(npcBot,pt);
         print("distance: " .. d);
         if(d > 200) then
-            local comfort_pt = mypos;
-            comfort_pt[1] = pt[1];
-            comfort_pt[2] = pt[2];
             print("mypos "..mypos[1]..mypos[2]);
-            print("comfort_pt "..comfort_pt[1]..comfort_pt[2]);
-            npcBot:Action_MoveToLocation(comfort_pt);
+            print("comfort_pt "..pt[1]..pt[2]);
+            npcBot:Action_MoveToLocation(pt);
         else
             StateMachine.State = STATE_ATTACKING_CREEP;
         end
+        return;
     else
-        middle_point = npcBot:GetLocation();
-        middle_point[1] = 1.0;
-        middle_point[2] = 1.0;
-        npcBot:Action_AttackMove(middle_point);
         StateMachine.State = STATE_IDLE;
+        return;
     end
 
 end
@@ -168,18 +154,36 @@ StateMachine[STATE_ATTACKING_CREEP] = StateAttackingCreep;
 StateMachine[STATE_RETREAT] = StateRetreat;
 StateMachine[STATE_GOTO_COMFORT_POINT] = StateGotoComfortPoint;
 
+LinaAbilityPriority = {"lina_laguna_blade",
+"lina_dragon_slave","lina_light_strike_array","lina_fiery_soul"};
+
 function ThinkLvlupAbility()
     -- Is there a bug? http://dev.dota2.com/showthread.php?t=274436
     local npcBot = GetBot();
-    npcBot:Action_LevelAbility("lina_laguna_blade");
+    --[[
+        npcBot:Action_LevelAbility("lina_laguna_blade");
     npcBot:Action_LevelAbility("lina_dragon_slave");
     npcBot:Action_LevelAbility("lina_light_strike_array");
     npcBot:Action_LevelAbility("lina_fiery_soul");
+    ]]
+
+    for _,AbilityName in pairs(LinaAbilityPriority)
+    do
+        -- USELESS BREAK : because valve does not check ability points
+        if TryToUpgradeAbility(AbilityName) then
+            break;
+        end
+    end
+    
+    
 end
 
 function Think(  )
     -- Think this item( ... )
     --update
+    local npcBot = GetBot();
+    --print("dragon_slave damage:" .. npcBot:GetAbilityByName( "lina_dragon_slave" ):GetAbilityDamage());
+    print("BotTarget:"..type(npcBot:GetTarget()));
     ThinkLvlupAbility();
     StateMachine[StateMachine.State](StateMachine);
     print("STATE: "..StateMachine.State);
@@ -190,6 +194,42 @@ function ConsiderAttackCreeps(creeps)
     -- there are creeps try to attack them --
     print("ConsiderAttackCreeps");
     local npcBot = GetBot();
+
+    -- Check if we're already using an ability
+	if ( npcBot:IsUsingAbility() ) then return end;
+
+    local abilityLSA = npcBot:GetAbilityByName( "lina_light_strike_array" );
+	local abilityDS = npcBot:GetAbilityByName( "lina_dragon_slave" );
+	local abilityLB = npcBot:GetAbilityByName( "lina_laguna_blade" );
+
+    -- Consider using each ability
+    
+	local castLBDesire, castLBTarget = ConsiderLagunaBlade(abilityLSA);
+	local castLSADesire, castLSALocation = ConsiderLightStrikeArray(abilityLB);
+	local castDSDesire, castDSLocation = ConsiderDragonSlave(abilityDS);
+
+    if ( castLBDesire > castLSADesire and castLBDesire > castDSDesire ) 
+	then
+		npcBot:Action_UseAbilityOnEntity( abilityLB, castLBTarget );
+		return;
+	end
+
+	if ( castLSADesire > 0 ) 
+	then
+		npcBot:Action_UseAbilityOnLocation( abilityLSA, castLSALocation );
+		return;
+	end
+
+	if ( castDSDesire > 0 ) 
+	then
+		npcBot:Action_UseAbilityOnLocation( abilityDS, castDSLocation );
+		return;
+	end
+
+    print("desires: " .. castLBDesire .. " " .. castLSADesire .. " " .. castDSDesire);
+
+    --If we dont cast ability, just try to last hit.
+
     local lowest_hp = 100000;
     for creep_k,creep in pairs(creeps)
     do 
@@ -218,16 +258,7 @@ function ConsiderAttackCreeps(creeps)
         end
     end
 
-    if(Attacking_creep ~= nil and Attacking_creep:IsAlive() == false)then
-        Attacking_creep = nil;
-    end
-
     weakest_creep = nil;
-end
-
-function CanLastHitTarget(target)
-    local npcBot = GetBot();
-    local damage = npcBot:GetEstimatedDamageToTarget(target);
 end
 
 function GetComfortPoint(creeps)
@@ -255,12 +286,32 @@ function GetComfortPoint(creeps)
     if(count > 0) then
         -- I assume ComfortPoint is 600 from the avg point 
         print("avg_pos : " .. avg_pos_x .. " , " .. avg_pos_y);
-        return {avg_pos_x - 600 / 1.414,avg_pos_y - 600 / 1.414};
+        return Vector(avg_pos_x - 600 / 1.414,avg_pos_y - 600 / 1.414);
     else
         return nil;
     end;
 end
 
-function dist2d(pt1,pt2)
-    return math.sqrt((pt1[1] - pt2[1]) * (pt1[1] - pt2[1]) + (pt1[2] - pt2[2]) * (pt1[2] - pt2[2]));
+
+function TryToUpgradeAbility(AbilityName)
+    local npcBot = GetBot();
+    local ability = npcBot:GetAbilityByName(AbilityName);
+    if ability:CanAbilityBeUpgraded() then
+        ability:UpgradeAbility();
+        return true;
+    end
+    return false;
+end
+
+-- How to get iTree handles?
+function IsItemAvailable(item_name)
+    local npcBot = GetBot();
+    -- query item code by Hewdraw
+    for i = 0, 5, 1 do
+        local item = hero:GetItemInSlot(i);
+        if(item and item:IsFullyCastable() and item:GetName() == item_name) then
+            return item;
+        end
+    end
+    return nil;
 end

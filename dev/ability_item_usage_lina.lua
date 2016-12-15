@@ -1,11 +1,8 @@
 
 ----------------------------------------------------------------------------------------------------
 
-castLBDesire = 0;
-castLSADesire = 0;
-castDSDesire = 0;
 
-function AbilityUsageThink()
+local function AbilityUsageThink()
 
 	local npcBot = GetBot();
 
@@ -107,7 +104,7 @@ end
 
 ----------------------------------------------------------------------------------------------------
 
-function ConsiderLightStrikeArray()
+function ConsiderLightStrikeArray(abilityLSA)
 
 	local npcBot = GetBot();
 
@@ -117,11 +114,6 @@ function ConsiderLightStrikeArray()
 		return BOT_ACTION_DESIRE_NONE, 0;
 	end;
 
-	-- If we want to cast Laguna Blade at all, bail
-	if ( castLBDesire > 0 ) 
-	then
-		return BOT_ACTION_DESIRE_NONE, 0;
-	end
 
 	-- Get some of its values
 	local nRadius = abilityLSA:GetSpecialValueInt( "light_strike_array_aoe" );
@@ -201,24 +193,22 @@ end
 
 ----------------------------------------------------------------------------------------------------
 
-function ConsiderDragonSlave()
+function ConsiderDragonSlave(abilityDS)
 
 	local npcBot = GetBot();
 
-	-- Make sure it's castable
-	if ( not abilityDS:IsFullyCastable() ) then 
+
+    if ( not abilityDS:IsFullyCastable() ) then 
 		return BOT_ACTION_DESIRE_NONE, 0;
 	end;
 
-	-- If we want to cast Laguna Blade at all, bail
-	if ( castLBDesire > 0 ) then
-		return BOT_ACTION_DESIRE_NONE, 0;
-	end
+	
 
 	-- Get some of its values
 	local nRadius = abilityDS:GetSpecialValueInt( "dragon_slave_width_end" );
 	local nCastRange = abilityDS:GetCastRange();
 	local nDamage = abilityDS:GetAbilityDamage();
+	print("dragon_slave damage:" .. nDamage);
 
 	--------------------------------------
 	-- Mode based usage
@@ -228,17 +218,18 @@ function ConsiderDragonSlave()
 	if ( true) then
 		local locationAoE = npcBot:FindAoELocation( true, false, npcBot:GetLocation(), nCastRange, nRadius, 0, nDamage );
 
-		if ( locationAoE.count >= 3 ) then
+		if ( locationAoE.count >= 2 ) then
 			return BOT_ACTION_DESIRE_LOW, locationAoE.targetloc;
 		end
 	end
 
 	-- If we're pushing or defending a lane and can hit 4+ creeps, go for it
-	if (true) 
+	-- wasting mana banned!
+	if (false) 
 	then
 		local locationAoE = npcBot:FindAoELocation( true, false, npcBot:GetLocation(), nCastRange, nRadius, 0, 0 );
 
-		if ( locationAoE.count >= 4 ) 
+		if ( locationAoE.count >= 5 ) 
 		then
 			return BOT_ACTION_DESIRE_LOW, locationAoE.targetloc;
 		end
@@ -258,14 +249,24 @@ function ConsiderDragonSlave()
 		end
 	end
 
-	return BOT_ACTION_DESIRE_NONE, 0;
+	-- If we have plenty mana and high level DS
+	if(npcBot:GetMana() / npcBot:GetMaxMana() > 0.6 and nDamage > 300) then
+        local locationAoE = npcBot:FindAoELocation( true, true, npcBot:GetLocation(), nCastRange, nRadius, 0, 0 );
 
+		-- hit heros
+		if ( locationAoE.count >= 1 ) 
+		then
+			return BOT_ACTION_DESIRE_LOW, locationAoE.targetloc;
+		end
+	end
+
+	return BOT_ACTION_DESIRE_NONE, 0;
 end
 
 
 ----------------------------------------------------------------------------------------------------
 
-function ConsiderLagunaBlade()
+function ConsiderLagunaBlade(abilityLB)
 
 	local npcBot = GetBot();
 
@@ -276,7 +277,7 @@ function ConsiderLagunaBlade()
 
 	-- Get some of its values
 	local nCastRange = abilityLB:GetCastRange();
-	local nDamage = abilityDS:GetSpecialValueInt( "damage" );
+	local nDamage = abilityLB:GetSpecialValueInt( "damage" );
 	local eDamageType = npcBot:HasScepter() and DAMAGE_TYPE_PURE or DAMAGE_TYPE_MAGICAL;
 
 	-- If a mode has set a target, and we can kill them, do it
