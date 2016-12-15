@@ -104,6 +104,26 @@ end
 
 ----------------------------------------------------------------------------------------------------
 
+function ConsiderLightStrikeArrayFighting(abilityLSA,enemy)
+    local npcBot = GetBot();
+
+	if ( not abilityLSA:IsFullyCastable() ) 
+	then 
+		return BOT_ACTION_DESIRE_NONE, 0;
+	end;
+
+	local nCastRange = abilityLSA:GetCastRange();
+
+	local d = GetUnitToLocationDistance(npcBot,enemy:GetLocation());
+
+	if (d < nCastRange and CanCastLightStrikeArrayOnTarget( enemy ) ) 
+	then
+		return BOT_ACTION_DESIRE_MODERATE, enemy:GetLocation();
+	end
+	return BOT_ACTION_DESIRE_NONE, 0;
+end
+
+
 function ConsiderLightStrikeArray(abilityLSA)
 
 	local npcBot = GetBot();
@@ -147,17 +167,6 @@ function ConsiderLightStrikeArray(abilityLSA)
 		end
 	end
 
-	-- If we're pushing or defending a lane and can hit 4+ creeps, go for it
-	if ( true ) 
-	then
-		local locationAoE = npcBot:FindAoELocation( true, false, npcBot:GetLocation(), nCastRange, nRadius, 0, 0 );
-
-		if ( locationAoE.count >= 4 ) 
-		then
-			return BOT_ACTION_DESIRE_LOW, locationAoE.targetloc;
-		end
-	end
-
 	-- If we're seriously retreating, see if we can land a stun on someone who's damaged us recently
 	if (true ) 
 	then
@@ -193,6 +202,24 @@ end
 
 ----------------------------------------------------------------------------------------------------
 
+function ConsiderDragonSlaveFighting(abilityDS,enemy)
+    local npcBot = GetBot();
+
+    if ( not abilityDS:IsFullyCastable() ) then 
+		return BOT_ACTION_DESIRE_NONE, 0;
+	end;
+
+	local nCastRange = abilityDS:GetCastRange();
+
+	local d = GetUnitToUnitDistance(npcBot,enemy);
+
+	if(d < nCastRange and CanCastDragonSlaveOnTarget(enemy))then
+		return BOT_ACTION_DESIRE_MODERATE, enemy:GetLocation();
+	end
+
+	return BOT_ACTION_DESIRE_NONE, 0;
+end
+
 function ConsiderDragonSlave(abilityDS)
 
 	local npcBot = GetBot();
@@ -208,13 +235,13 @@ function ConsiderDragonSlave(abilityDS)
 	local nRadius = abilityDS:GetSpecialValueInt( "dragon_slave_width_end" );
 	local nCastRange = abilityDS:GetCastRange();
 	local nDamage = abilityDS:GetAbilityDamage();
-	print("dragon_slave damage:" .. nDamage);
+	--print("dragon_slave damage:" .. nDamage);
 
 	--------------------------------------
 	-- Mode based usage
 	--------------------------------------
 
-	-- If we're farming and can kill 3+ creeps with LSA
+	-- If we're farming and can kill 2+ creeps with LSA when we have plenty mana
 	if ( true) then
 		local locationAoE = npcBot:FindAoELocation( true, false, npcBot:GetLocation(), nCastRange, nRadius, 0, nDamage );
 
@@ -274,6 +301,7 @@ function ConsiderLagunaBlade(abilityLB)
 	if ( not abilityLB:IsFullyCastable() ) then 
 		return BOT_ACTION_DESIRE_NONE, 0;
 	end
+	
 
 	-- Get some of its values
 	local nCastRange = abilityLB:GetCastRange();
@@ -281,15 +309,21 @@ function ConsiderLagunaBlade(abilityLB)
 	local eDamageType = npcBot:HasScepter() and DAMAGE_TYPE_PURE or DAMAGE_TYPE_MAGICAL;
 
 	-- If a mode has set a target, and we can kill them, do it
-	local npcTarget = npcBot:GetTarget();
-	if ( npcTarget ~= nil and CanCastLagunaBladeOnTarget( npcTarget ) )
-	then
-		if ( npcTarget:GetActualDamage( nDamage, eDamageType ) > npcTarget:GetHealth() and UnitToUnitDistance( npcTarget, npcBot ) < ( nCastRange + 200 ) )
-		then
-			return BOT_ACTION_DESIRE_HIGH, npcTarget;
+	local NearbyEnemyHeroes = npcBot:GetNearbyHeroes( nCastRange + 200, true, BOT_MODE_NONE );
+	if(NearbyEnemyHeroes ~= nil) then
+	    for _,npcEnemy in pairs( NearbyEnemyHeroes )
+		do
+			if (CanCastLagunaBladeOnTarget( npcEnemy ) )
+			then
+				if ( npcEnemy:GetActualDamage( nDamage, eDamageType ) > npcEnemy:GetHealth() )
+				then
+					return BOT_ACTION_DESIRE_HIGH, npcEnemy;
+				end
+			end
 		end
 	end
 
+    --[[
 	-- If we're in a teamfight, use it on the scariest enemy
 	local tableNearbyAttackingAlliedHeroes = npcBot:GetNearbyHeroes( 1000, false, BOT_MODE_ATTACK );
 	if ( #tableNearbyAttackingAlliedHeroes >= 2 ) 
@@ -317,6 +351,7 @@ function ConsiderLagunaBlade(abilityLB)
 			return BOT_ACTION_DESIRE_HIGH, npcMostDangerousEnemy;
 		end
 	end
+	]]
 
 	return BOT_ACTION_DESIRE_NONE, 0;
 

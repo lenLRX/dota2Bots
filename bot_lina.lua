@@ -15,8 +15,11 @@ STATE_KILL = "STATE_KILL";
 STATE_RETREAT = "STATE_RETREAT";
 STATE_FARMING = "STATE_FARMING";
 STATE_GOTO_COMFORT_POINT = "STATE_GOTO_COMFORT_POINT";
+STATE_FIGHTING = "STATE_FIGHTING";
+STATE_RUN_AWAY_FROM_TOWER = "STATE_RUN_AWAY_FROM_TOWER";
 
-LinaRetreatThreshold = 0.5
+LinaRetreatHPThreshold = 0.3;
+LinaRetreatMPThreshold = 0.2;
 
 STATE = STATE_IDLE;
 
@@ -33,14 +36,42 @@ function StateIdle(StateMachine)
     local creeps = npcBot:GetNearbyCreeps(800,true);
     local pt = GetComfortPoint(creeps);
 
-    if(npcBot:GetHealth()/npcBot:GetMaxHealth() < LinaRetreatThreshold) then
+    local ShouldFight = false;
+
+    local NearbyEnemyHeroes = npcBot:GetNearbyHeroes( 1000, true, BOT_MODE_NONE );
+    if(NearbyEnemyHeroes ~= nil) then
+        for _,npcEnemy in pairs( NearbyEnemyHeroes )
+        do
+            if(npcBot:WasRecentlyDamagedByHero(npcEnemy,1)) then
+                -- got the enemy who attacks me, kill him!--
+                EnemyToKill = npcEnemy;
+                ShouldFight = true;
+                break;
+            elseif(GetUnitToUnitDistance(npcBot,npcEnemy) < 500) then
+                EnemyToKill = npcEnemy;
+                ShouldFight = true;
+                break;
+            end
+        end
+    end
+
+    if(ShouldRetreat()) then
         StateMachine.State = STATE_RETREAT;
+        return;
+    elseif(npcBot:GetAttackTarget() ~= nil) then
+        if(npcBot:GetAttackTarget():IsHero()) then
+            EnemyToKill = npcBot:GetAttackTarget();
+            print("auto attacking: "..npcBot:GetAttackTarget():GetUnitName());
+            StateMachine.State = STATE_FIGHTING;
+            return;
+        end
+    elseif(ShouldFight) then
+        StateMachine.State = STATE_FIGHTING;
         return;
     elseif(#creeps > 0 and pt ~= nil) then
         local mypos = npcBot:GetLocation();
         
         local d = GetUnitToLocationDistance(npcBot,pt);
-        print("distance: " .. d);
         if(d > 200) then
             StateMachine.State = STATE_GOTO_COMFORT_POINT;
         else
@@ -49,8 +80,15 @@ function StateIdle(StateMachine)
         return;
     end
 
-    middle_point = Vector(0,0);
-    npcBot:Action_AttackMove(middle_point);
+    local NearbyTowers = npcBot:GetNearbyTowers(1000,true);
+    if(#NearbyTowers > 0) then
+        target = GetLocationAlongLane(2,0);
+        npcBot:Action_MoveToLocation(target);
+    else
+        target = GetLocationAlongLane(2,0.95);
+        npcBot:Action_AttackMove(target);
+    end
+    
 
 end
 
@@ -64,14 +102,35 @@ function StateAttackingCreep(StateMachine)
     local creeps = npcBot:GetNearbyCreeps(800,true);
     local pt = GetComfortPoint(creeps);
 
-    if(npcBot:GetHealth()/npcBot:GetMaxHealth() < LinaRetreatThreshold) then
+    local ShouldFight = false;
+
+    local NearbyEnemyHeroes = npcBot:GetNearbyHeroes( 1000, true, BOT_MODE_NONE );
+    if(NearbyEnemyHeroes ~= nil) then
+        for _,npcEnemy in pairs( NearbyEnemyHeroes )
+        do
+            if(npcBot:WasRecentlyDamagedByHero(npcEnemy,1)) then
+                -- got the enemy who attacks me, kill him!--
+                EnemyToKill = npcEnemy;
+                ShouldFight = true;
+                break;
+            elseif(GetUnitToUnitDistance(npcBot,npcEnemy) < 500) then
+                EnemyToKill = npcEnemy;
+                ShouldFight = true;
+                break;
+            end
+        end
+    end
+
+
+    if(ShouldRetreat()) then
         StateMachine.State = STATE_RETREAT;
+        return;
+    elseif(ShouldFight) then
+        StateMachine.State = STATE_FIGHTING;
         return;
     elseif(#creeps > 0 and pt ~= nil) then
         local mypos = npcBot:GetLocation();
-        
         local d = GetUnitToLocationDistance(npcBot,pt);
-        print("distance: " .. d);
         if(d > 200) then
             StateMachine.State = STATE_GOTO_COMFORT_POINT;
         else
@@ -99,7 +158,7 @@ function StateRetreat(StateMachine)
     home_pos = Vector(-7000,-7000);
     npcBot:Action_MoveToLocation(home_pos);
 
-    if(npcBot:GetHealth() == npcBot:GetMaxHealth()) then
+    if(npcBot:GetHealth() == npcBot:GetMaxHealth() and npcBot:GetMana() == npcBot:GetMaxMana()) then
         StateMachine.State = STATE_IDLE;
         return;
     end
@@ -115,17 +174,16 @@ function StateGotoComfortPoint(StateMachine)
     local creeps = npcBot:GetNearbyCreeps(800,true);
     local pt = GetComfortPoint(creeps);
 
-    if(npcBot:GetHealth()/npcBot:GetMaxHealth() < LinaRetreatThreshold) then
+    if(ShouldRetreat()) then
         StateMachine.State = STATE_RETREAT;
         return;
     elseif(#creeps > 0 and pt ~= nil) then
         local mypos = npcBot:GetLocation();
         
         local d = GetUnitToLocationDistance(npcBot,pt);
-        print("distance: " .. d);
         if(d > 200) then
-            print("mypos "..mypos[1]..mypos[2]);
-            print("comfort_pt "..pt[1]..pt[2]);
+            --print("mypos "..mypos[1]..mypos[2]);
+            --print("comfort_pt "..pt[1]..pt[2]);
             npcBot:Action_MoveToLocation(pt);
         else
             StateMachine.State = STATE_ATTACKING_CREEP;
@@ -136,6 +194,61 @@ function StateGotoComfortPoint(StateMachine)
         return;
     end
 
+end
+
+function StateFighting(StateMachine)
+    local npcBot = GetBot();
+    if(npcBot:IsAlive() == false) then
+        StateMachine.State = STATE_IDLE;
+        return;
+    end
+
+    if(not EnemyToKill:CanBeSeen() or not EnemyToKill:IsAlive()) then
+        -- lost enemy 
+        print("lost enemy");
+        StateMachine.State = STATE_IDLE;
+        return;
+    else
+        if ( npcBot:IsUsingAbility() ) then return end;
+
+        local abilityLSA = npcBot:GetAbilityByName( "lina_light_strike_array" );
+        local abilityDS = npcBot:GetAbilityByName( "lina_dragon_slave" );
+        local abilityLB = npcBot:GetAbilityByName( "lina_laguna_blade" );
+
+        -- Consider using each ability
+        
+        local castLBDesire, castLBTarget = ConsiderLagunaBlade(abilityLB);
+        local castLSADesire, castLSALocation = ConsiderLightStrikeArrayFighting(abilityLSA,EnemyToKill);
+        local castDSDesire, castDSLocation = ConsiderDragonSlaveFighting(abilityDS,EnemyToKill);
+
+        if ( castLBDesire > 0 ) 
+        then
+            LastEnemyToBeAttacked = nil;
+            npcBot:Action_UseAbilityOnEntity( abilityLB, castLBTarget );
+            return;
+        end
+
+        if ( castLSADesire > 0 ) 
+        then
+            LastEnemyToBeAttacked = nil;
+            npcBot:Action_UseAbilityOnLocation( abilityLSA, castLSALocation );
+            return;
+        end
+
+        if ( castDSDesire > 0 ) 
+        then
+            LastEnemyToBeAttacked = nil;
+            npcBot:Action_UseAbilityOnLocation( abilityDS, castDSLocation );
+            return;
+        end
+
+        --print("desires: " .. castLBDesire .. " " .. castLSADesire .. " " .. castDSDesire);
+
+        if(npcBot:GetAttackTarget() ~= EnemyToKill) then
+            npcBot:Action_AttackUnit(EnemyToKill,false);
+        end
+
+    end
 end
 
 -- useless now ignore it
@@ -153,6 +266,8 @@ StateMachine[STATE_IDLE] = StateIdle;
 StateMachine[STATE_ATTACKING_CREEP] = StateAttackingCreep;
 StateMachine[STATE_RETREAT] = StateRetreat;
 StateMachine[STATE_GOTO_COMFORT_POINT] = StateGotoComfortPoint;
+StateMachine[STATE_FIGHTING] = StateFighting;
+
 
 LinaAbilityPriority = {"lina_laguna_blade",
 "lina_dragon_slave","lina_light_strike_array","lina_fiery_soul"};
@@ -174,25 +289,28 @@ function ThinkLvlupAbility()
             break;
         end
     end
-    
-    
 end
+
+PrevState = "none";
 
 function Think(  )
     -- Think this item( ... )
     --update
     local npcBot = GetBot();
-    --print("dragon_slave damage:" .. npcBot:GetAbilityByName( "lina_dragon_slave" ):GetAbilityDamage());
-    print("BotTarget:"..type(npcBot:GetTarget()));
+    --print(GetLocationAlongLane(2,0.9));
     ThinkLvlupAbility();
     StateMachine[StateMachine.State](StateMachine);
-    print("STATE: "..StateMachine.State);
+
+    if(PrevState ~= StateMachine.State) then
+        print("STATE: "..StateMachine.State);
+        PrevState = StateMachine.State;
+    end
 	
 end
 
 function ConsiderAttackCreeps(creeps)
     -- there are creeps try to attack them --
-    print("ConsiderAttackCreeps");
+    --print("ConsiderAttackCreeps");
     local npcBot = GetBot();
 
     -- Check if we're already using an ability
@@ -204,33 +322,37 @@ function ConsiderAttackCreeps(creeps)
 
     -- Consider using each ability
     
-	local castLBDesire, castLBTarget = ConsiderLagunaBlade(abilityLSA);
-	local castLSADesire, castLSALocation = ConsiderLightStrikeArray(abilityLB);
+	local castLBDesire, castLBTarget = ConsiderLagunaBlade(abilityLB);
+	local castLSADesire, castLSALocation = ConsiderLightStrikeArray(abilityLSA);
 	local castDSDesire, castDSLocation = ConsiderDragonSlave(abilityDS);
 
     if ( castLBDesire > castLSADesire and castLBDesire > castDSDesire ) 
 	then
+        LastEnemyToBeAttacked = nil;
 		npcBot:Action_UseAbilityOnEntity( abilityLB, castLBTarget );
 		return;
 	end
 
 	if ( castLSADesire > 0 ) 
 	then
+        LastEnemyToBeAttacked = nil;
 		npcBot:Action_UseAbilityOnLocation( abilityLSA, castLSALocation );
 		return;
 	end
 
 	if ( castDSDesire > 0 ) 
 	then
+        LastEnemyToBeAttacked = nil;
 		npcBot:Action_UseAbilityOnLocation( abilityDS, castDSLocation );
 		return;
 	end
 
-    print("desires: " .. castLBDesire .. " " .. castLSADesire .. " " .. castDSDesire);
+    --print("desires: " .. castLBDesire .. " " .. castLSADesire .. " " .. castDSDesire);
 
     --If we dont cast ability, just try to last hit.
 
     local lowest_hp = 100000;
+    local weakest_creep = nil;
     for creep_k,creep in pairs(creeps)
     do 
         --npcBot:GetEstimatedDamageToTarget
@@ -255,10 +377,25 @@ function ConsiderAttackCreeps(creeps)
             Attacking_creep = weakest_creep;
             npcBot:Action_AttackUnit(Attacking_creep,true);
             StateMachine.State = STATE_ATTACKING_CREEP;
+            return;
         end
+        weakest_creep = nil;
+        
     end
 
-    weakest_creep = nil;
+    -- nothing to do , try to attack heros
+
+    local NearbyEnemyHeroes = npcBot:GetNearbyHeroes( 1000, true, BOT_MODE_NONE );
+    if(NearbyEnemyHeroes ~= nil) then
+        for _,npcEnemy in pairs( NearbyEnemyHeroes )
+        do
+            if(npcBot:GetAttackTarget() ~= npcEnemy) then
+                npcBot:Action_AttackUnit(npcEnemy,false);
+                return;
+            end
+        end
+    end
+    
 end
 
 function GetComfortPoint(creeps)
@@ -285,7 +422,7 @@ function GetComfortPoint(creeps)
 
     if(count > 0) then
         -- I assume ComfortPoint is 600 from the avg point 
-        print("avg_pos : " .. avg_pos_x .. " , " .. avg_pos_y);
+        --print("avg_pos : " .. avg_pos_x .. " , " .. avg_pos_y);
         return Vector(avg_pos_x - 600 / 1.414,avg_pos_y - 600 / 1.414);
     else
         return nil;
@@ -314,4 +451,11 @@ function IsItemAvailable(item_name)
         end
     end
     return nil;
+end
+
+function ShouldRetreat()
+    local npcBot = GetBot();
+    return npcBot:GetHealth()/npcBot:GetMaxHealth() 
+    < LinaRetreatHPThreshold or npcBot:GetMana()/npcBot:GetMaxMana() 
+    < LinaRetreatMPThreshold;
 end

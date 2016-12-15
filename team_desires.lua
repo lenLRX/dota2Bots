@@ -4,7 +4,7 @@
 
 function UpdatePushLaneDesires()
 
-	return { 0.0, 0.0, 1.0 };
+	return { 0.0, 1.0, 0.0 };
 
 end
 
@@ -12,7 +12,7 @@ end
 
 function UpdateDefendLaneDesires()
 
-	return { 0.1, 0.0, 1.0 };
+	return { 0.1, 1.0, 0.0 };
 
 end
 
@@ -20,7 +20,7 @@ end
 
 function UpdateFarmLaneDesires()
 
-	return { 0.0, 0.0, 1.0 };
+	return { 0.0, 1.0, 0.0 };
 
 end
 
