@@ -1,5 +1,9 @@
 # dota2LinaBot
 
+## if you want to play with lina
+### modify hero_selection.lua : line 4: set offset = 4  and you must be in the third slot.
+### start and enjoy your match!
+
 completely take over control of lina by bot_lina.lua 
 
 now lina can push mid, and try to farm, if lina's hp/mp is low,she will return to the base.

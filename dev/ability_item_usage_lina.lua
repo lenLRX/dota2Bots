@@ -114,11 +114,13 @@ function ConsiderLightStrikeArrayFighting(abilityLSA,enemy)
 
 	local nCastRange = abilityLSA:GetCastRange();
 
-	local d = GetUnitToLocationDistance(npcBot,enemy:GetLocation());
+	local EnemyLocation = predictPosition(enemy,1);
 
-	if (d < nCastRange and CanCastLightStrikeArrayOnTarget( enemy ) ) 
+	local d = GetUnitToLocationDistance(npcBot,EnemyLocation);
+
+	if (d < nCastRange + 200 and CanCastLightStrikeArrayOnTarget( enemy ) ) 
 	then
-		return BOT_ACTION_DESIRE_MODERATE, enemy:GetLocation();
+		return BOT_ACTION_DESIRE_MODERATE, EnemyLocation;
 	end
 	return BOT_ACTION_DESIRE_NONE, 0;
 end
@@ -357,3 +359,10 @@ function ConsiderLagunaBlade(abilityLB)
 
 end
 
+function predictPosition(hero,t)
+    local ret = hero:GetLocation();
+	local v = hero:GetVelocity();
+	ret[1] = ret[1] + t * v[1];
+	ret[2] = ret[2] + t * v[2];
+	return ret;
+end

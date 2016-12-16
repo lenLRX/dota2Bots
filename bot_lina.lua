@@ -16,7 +16,7 @@ STATE_RETREAT = "STATE_RETREAT";
 STATE_FARMING = "STATE_FARMING";
 STATE_GOTO_COMFORT_POINT = "STATE_GOTO_COMFORT_POINT";
 STATE_FIGHTING = "STATE_FIGHTING";
-STATE_RUN_AWAY_FROM_TOWER = "STATE_RUN_AWAY_FROM_TOWER";
+STATE_RUN_AWAY = "STATE_RUN_AWAY";
 
 LinaRetreatHPThreshold = 0.3;
 LinaRetreatMPThreshold = 0.2;
@@ -59,7 +59,7 @@ function StateIdle(StateMachine)
         StateMachine.State = STATE_RETREAT;
         return;
     elseif(IsTowerAttackingMe()) then
-        StateMachine.State = STATE_RUN_AWAY_FROM_TOWER;
+        StateMachine.State = STATE_RUN_AWAY;
         return;
     elseif(npcBot:GetAttackTarget() ~= nil) then
         if(npcBot:GetAttackTarget():IsHero()) then
@@ -123,7 +123,7 @@ function StateAttackingCreep(StateMachine)
         StateMachine.State = STATE_RETREAT;
         return;
     elseif(IsTowerAttackingMe()) then
-        StateMachine.State = STATE_RUN_AWAY_FROM_TOWER;
+        StateMachine.State = STATE_RUN_AWAY;
     elseif(ShouldFight) then
         StateMachine.State = STATE_FIGHTING;
         return;
@@ -177,7 +177,7 @@ function StateGotoComfortPoint(StateMachine)
         StateMachine.State = STATE_RETREAT;
         return;
     elseif(IsTowerAttackingMe()) then
-        StateMachine.State = STATE_RUN_AWAY_FROM_TOWER;
+        StateMachine.State = STATE_RUN_AWAY;
     elseif(#creeps > 0 and pt ~= nil) then
         local mypos = npcBot:GetLocation();
         
@@ -205,7 +205,7 @@ function StateFighting(StateMachine)
     end
 
     if(IsTowerAttackingMe() and npcBot:GetHealth() < EnemyToKill:GetHealth()) then
-        StateMachine.State = STATE_RUN_AWAY_FROM_TOWER;
+        StateMachine.State = STATE_RUN_AWAY;
     elseif(not EnemyToKill:CanBeSeen() or not EnemyToKill:IsAlive()) then
         -- lost enemy 
         print("lost enemy");
@@ -245,7 +245,21 @@ function StateFighting(StateMachine)
             return;
         end
 
-        --print("desires: " .. castLBDesire .. " " .. castLSADesire .. " " .. castDSDesire);
+        if(not abilityLSA:IsFullyCastable() and 
+        not abilityDS:IsFullyCastable() or EnemyToKill:IsMagicImmune()) then
+            local extraHP = 0;
+            if(abilityLB:IsFullyCastable()) then
+                local LBnDamage = abilityLB:GetSpecialValueInt( "damage" );
+                local LBeDamageType = npcBot:HasScepter() and DAMAGE_TYPE_PURE or DAMAGE_TYPE_MAGICAL;
+                extraHP = EnemyToKill:GetActualDamage(LBnDamage,LBeDamageType);
+            end
+
+            if(EnemyToKill:GetHealth() - extraHP > npcBot:GetHealth()) then
+                StateMachine.State = STATE_RUN_AWAY;
+                return;
+            end
+        end
+
 
         if(npcBot:GetAttackTarget() ~= EnemyToKill) then
             npcBot:Action_AttackUnit(EnemyToKill,false);
@@ -254,7 +268,7 @@ function StateFighting(StateMachine)
     end
 end
 
-function StateRunAwayFromTower(StateMachine)
+function StateRunAway(StateMachine)
     local npcBot = GetBot();
     if(npcBot:IsAlive() == false) then
         StateMachine.State = STATE_IDLE;
@@ -301,7 +315,7 @@ StateMachine[STATE_ATTACKING_CREEP] = StateAttackingCreep;
 StateMachine[STATE_RETREAT] = StateRetreat;
 StateMachine[STATE_GOTO_COMFORT_POINT] = StateGotoComfortPoint;
 StateMachine[STATE_FIGHTING] = StateFighting;
-StateMachine[STATE_RUN_AWAY_FROM_TOWER] = StateRunAwayFromTower;
+StateMachine[STATE_RUN_AWAY] = StateRunAway;
 
 
 LinaAbilityPriority = {"lina_laguna_blade",
