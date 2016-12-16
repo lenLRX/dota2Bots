@@ -1,7 +1,7 @@
 # dota2LinaBot
 
 ## if you want to play with lina
-### modify hero_selection.lua : line 4: set offset = 4  and you must be in the third slot.
+### modify hero_selection.lua : line 4: set offset = 4  and you must be in the <b>third slot in dire</b>.
 ### start and enjoy your match!
 
 completely take over control of lina by bot_lina.lua 
