@@ -3,7 +3,7 @@
 completely take over control of lina by bot_lina.lua 
 
 now lina can push mid, and try to farm, if lina's hp/mp is low,she will return to the base.
-If lina is attacked,she will try to kill enemy util enemy is dead or missing.
+If lina is attacked,she will try to kill enemy until enemy is dead or missing.
 
 Lina will never try to go into the tower's range.But if lina is angry,she will ignore anything.
 

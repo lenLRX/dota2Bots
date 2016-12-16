@@ -2,6 +2,7 @@
 --"item_flask" == heal flask
 
 local tableItemsToBuy = { 
+	            "item_ring_of_regen",
 				"item_mantle",
 				"item_circlet",
 				"item_recipe_null_talisman",
@@ -9,11 +10,10 @@ local tableItemsToBuy = {
 				"item_boots",
 				"item_robe",
 				"item_gloves",
-				"item_lifesteal",
+				"item_gloves",
 				"item_branches",
-				"ring_of_regen",
-				"recipe_headdress",
-				"recipe_helm_of_the_dominator",
+				"item_recipe_headdress",
+				"item_recipe_helm_of_the_dominator",
 				"item_gloves",
 				"item_mithril_hammer",
 				"item_recipe_maelstrom",

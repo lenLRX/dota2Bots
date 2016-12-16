@@ -33,7 +33,7 @@ function StateIdle(StateMachine)
         return;
     end
 
-    local creeps = npcBot:GetNearbyCreeps(800,true);
+    local creeps = npcBot:GetNearbyCreeps(1000,true);
     local pt = GetComfortPoint(creeps);
 
     local ShouldFight = false;
@@ -57,6 +57,9 @@ function StateIdle(StateMachine)
 
     if(ShouldRetreat()) then
         StateMachine.State = STATE_RETREAT;
+        return;
+    elseif(IsTowerAttackingMe()) then
+        StateMachine.State = STATE_RUN_AWAY_FROM_TOWER;
         return;
     elseif(npcBot:GetAttackTarget() ~= nil) then
         if(npcBot:GetAttackTarget():IsHero()) then
@@ -80,14 +83,8 @@ function StateIdle(StateMachine)
         return;
     end
 
-    local NearbyTowers = npcBot:GetNearbyTowers(1000,true);
-    if(#NearbyTowers > 0) then
-        target = GetLocationAlongLane(2,0);
-        npcBot:Action_MoveToLocation(target);
-    else
-        target = GetLocationAlongLane(2,0.95);
-        npcBot:Action_AttackMove(target);
-    end
+    target = GetLocationAlongLane(2,0.95);
+    npcBot:Action_AttackMove(target);
     
 
 end
@@ -99,7 +96,7 @@ function StateAttackingCreep(StateMachine)
         return;
     end
 
-    local creeps = npcBot:GetNearbyCreeps(800,true);
+    local creeps = npcBot:GetNearbyCreeps(1000,true);
     local pt = GetComfortPoint(creeps);
 
     local ShouldFight = false;
@@ -125,6 +122,8 @@ function StateAttackingCreep(StateMachine)
     if(ShouldRetreat()) then
         StateMachine.State = STATE_RETREAT;
         return;
+    elseif(IsTowerAttackingMe()) then
+        StateMachine.State = STATE_RUN_AWAY_FROM_TOWER;
     elseif(ShouldFight) then
         StateMachine.State = STATE_FIGHTING;
         return;
@@ -134,7 +133,7 @@ function StateAttackingCreep(StateMachine)
         if(d > 200) then
             StateMachine.State = STATE_GOTO_COMFORT_POINT;
         else
-            ConsiderAttackCreeps(creeps);
+            ConsiderAttackCreeps();
         end
         return;
     else
@@ -171,12 +170,14 @@ function StateGotoComfortPoint(StateMachine)
         return;
     end
 
-    local creeps = npcBot:GetNearbyCreeps(800,true);
+    local creeps = npcBot:GetNearbyCreeps(1000,true);
     local pt = GetComfortPoint(creeps);
 
     if(ShouldRetreat()) then
         StateMachine.State = STATE_RETREAT;
         return;
+    elseif(IsTowerAttackingMe()) then
+        StateMachine.State = STATE_RUN_AWAY_FROM_TOWER;
     elseif(#creeps > 0 and pt ~= nil) then
         local mypos = npcBot:GetLocation();
         
@@ -203,7 +204,9 @@ function StateFighting(StateMachine)
         return;
     end
 
-    if(not EnemyToKill:CanBeSeen() or not EnemyToKill:IsAlive()) then
+    if(IsTowerAttackingMe() and npcBot:GetHealth() < EnemyToKill:GetHealth()) then
+        StateMachine.State = STATE_RUN_AWAY_FROM_TOWER;
+    elseif(not EnemyToKill:CanBeSeen() or not EnemyToKill:IsAlive()) then
         -- lost enemy 
         print("lost enemy");
         StateMachine.State = STATE_IDLE;
@@ -251,6 +254,37 @@ function StateFighting(StateMachine)
     end
 end
 
+function StateRunAwayFromTower(StateMachine)
+    local npcBot = GetBot();
+    if(npcBot:IsAlive() == false) then
+        StateMachine.State = STATE_IDLE;
+        TargetOfRunAwayFromTower = nil;
+        return;
+    end
+
+    if(ShouldRetreat()) then
+        StateMachine.State = STATE_RETREAT;
+        TargetOfRunAwayFromTower = nil;
+        return;
+    end
+
+    local mypos = npcBot:GetLocation();
+
+    if(TargetOfRunAwayFromTower == nil) then
+        --set the target to go back
+        TargetOfRunAwayFromTower = Vector(mypos[1] - 400,mypos[2] - 400);
+        npcBot:Action_MoveToLocation(TargetOfRunAwayFromTower);
+        return;
+    else
+        if(GetUnitToLocationDistance(npcBot,TargetOfRunAwayFromTower) < 100) then
+            -- we are far enough from tower,return to normal state.
+            TargetOfRunAwayFromTower = nil;
+            StateMachine.State = STATE_IDLE;
+            return;
+        end
+    end
+end 
+
 -- useless now ignore it
 function StateFarming(StateMachine)
     local npcBot = GetBot();
@@ -267,6 +301,7 @@ StateMachine[STATE_ATTACKING_CREEP] = StateAttackingCreep;
 StateMachine[STATE_RETREAT] = StateRetreat;
 StateMachine[STATE_GOTO_COMFORT_POINT] = StateGotoComfortPoint;
 StateMachine[STATE_FIGHTING] = StateFighting;
+StateMachine[STATE_RUN_AWAY_FROM_TOWER] = StateRunAwayFromTower;
 
 
 LinaAbilityPriority = {"lina_laguna_blade",
@@ -308,10 +343,13 @@ function Think(  )
 	
 end
 
-function ConsiderAttackCreeps(creeps)
+function ConsiderAttackCreeps()
     -- there are creeps try to attack them --
     --print("ConsiderAttackCreeps");
     local npcBot = GetBot();
+
+    local EnemyCreeps = npcBot:GetNearbyCreeps(1000,true);
+    local AllyCreeps = npcBot:GetNearbyCreeps(1000,false);
 
     -- Check if we're already using an ability
 	if ( npcBot:IsUsingAbility() ) then return end;
@@ -353,16 +391,12 @@ function ConsiderAttackCreeps(creeps)
 
     local lowest_hp = 100000;
     local weakest_creep = nil;
-    for creep_k,creep in pairs(creeps)
+    for creep_k,creep in pairs(EnemyCreeps)
     do 
         --npcBot:GetEstimatedDamageToTarget
         local creep_name = creep:GetUnitName();
-        -- "bad" means "dire" and "good" means "radian"
-        local badpos = string.find( creep_name,"bad");
-        if(creep:IsAlive() == false) then
-            print("dead creep");
-        end
-        if(badpos ~= nil and creep:IsAlive()) then
+        --print(creep_name);
+        if(creep:IsAlive()) then
              local creep_hp = creep:GetHealth();
              if(lowest_hp > creep_hp) then
                  lowest_hp = creep_hp;
@@ -373,7 +407,34 @@ function ConsiderAttackCreeps(creeps)
 
     if(weakest_creep ~= nil) then
         -- if creep's hp is lower than 70(because I don't Know how much is my damadge!!), try to last hit it.
-        if(Attacking_creep ~= weakest_creep and lowest_hp < 70) then
+        if(npcBot:GetAttackTarget() == nil and lowest_hp < 100) then
+            npcBot:Action_AttackUnit(weakest_creep,true);
+            StateMachine.State = STATE_ATTACKING_CREEP;
+            return;
+        end
+        weakest_creep = nil;
+        
+    end
+
+    for creep_k,creep in pairs(AllyCreeps)
+    do 
+        --npcBot:GetEstimatedDamageToTarget
+        local creep_name = creep:GetUnitName();
+        --print(creep_name);
+        if(creep:IsAlive()) then
+             local creep_hp = creep:GetHealth();
+             if(lowest_hp > creep_hp) then
+                 lowest_hp = creep_hp;
+                 weakest_creep = creep;
+             end
+         end
+    end
+
+    if(weakest_creep ~= nil) then
+        -- if creep's hp is lower than 70(because I don't Know how much is my damadge!!), try to last hit it.
+        if(npcBot:GetAttackTarget() == nil and 
+        lowest_hp < 100 and 
+        weakest_creep:GetHealth() / weakest_creep:GetMaxHealth() < 0.5) then
             Attacking_creep = weakest_creep;
             npcBot:Action_AttackUnit(Attacking_creep,true);
             StateMachine.State = STATE_ATTACKING_CREEP;
@@ -389,7 +450,7 @@ function ConsiderAttackCreeps(creeps)
     if(NearbyEnemyHeroes ~= nil) then
         for _,npcEnemy in pairs( NearbyEnemyHeroes )
         do
-            if(npcBot:GetAttackTarget() ~= npcEnemy) then
+            if(npcBot:GetAttackTarget() == nil) then
                 npcBot:Action_AttackUnit(npcEnemy,false);
                 return;
             end
@@ -458,4 +519,20 @@ function ShouldRetreat()
     return npcBot:GetHealth()/npcBot:GetMaxHealth() 
     < LinaRetreatHPThreshold or npcBot:GetMana()/npcBot:GetMaxMana() 
     < LinaRetreatMPThreshold;
+end
+
+function IsTowerAttackingMe()
+    local npcBot = GetBot();
+    local NearbyTowers = npcBot:GetNearbyTowers(1000,true);
+    if(#NearbyTowers > 0) then
+        for _,tower in pairs( NearbyTowers)
+        do
+            if(GetUnitToUnitDistance(tower,npcBot) < 900) then
+                print("Attacked by tower");
+                return true;
+            end
+        end
+    else
+        return false;
+    end
 end
