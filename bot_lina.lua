@@ -25,6 +25,18 @@ local LinaRetreatMPThreshold = 0.2;
 local STATE = STATE_IDLE;
 
 ----------------- local utility functions reordered for lua local visibility--------
+--Perry's code from http://dev.dota2.com/showthread.php?t=274837
+local function PerryGetHeroLevel()
+    local npcBot = GetBot();
+    local respawnTable = {8, 10, 12, 14, 16, 26, 28, 30, 32, 34, 36, 46, 48, 50, 52, 54, 56, 66, 70, 74, 78,  82, 86, 90, 100};
+    local nRespawnTime = npcBot:GetRespawnTime() +1 -- It gives 1 second lower values.
+    for k,v in pairs (respawnTable) do
+        if v == nRespawnTime then
+        return k
+        end
+    end
+end
+
 
 local function TryToUpgradeAbility(AbilityName)
     local npcBot = GetBot();
@@ -460,29 +472,35 @@ end
 
 local function StateRunAway(StateMachine)
     local npcBot = GetBot();
+    --print("debug: enter runaway");
+    --print(StateMachine["TargetOfRunAwayFromTower"])
+
     if(npcBot:IsAlive() == false) then
         StateMachine.State = STATE_IDLE;
-        TargetOfRunAwayFromTower = nil;
+        StateMachine["TargetOfRunAwayFromTower"] = nil;
+
+        --print("debug: enter runaway");
+        --print(StateMachine["TargetOfRunAwayFromTower"])
         return;
     end
 
     if(ShouldRetreat()) then
         StateMachine.State = STATE_RETREAT;
-        TargetOfRunAwayFromTower = nil;
+        StateMachine["TargetOfRunAwayFromTower"] = nil;
         return;
     end
 
     local mypos = npcBot:GetLocation();
 
-    if(TargetOfRunAwayFromTower == nil) then
+    if(StateMachine["TargetOfRunAwayFromTower"] == nil) then
         --set the target to go back
-        TargetOfRunAwayFromTower = Vector(mypos[1] - 400,mypos[2] - 400);
-        npcBot:Action_MoveToLocation(TargetOfRunAwayFromTower);
+        StateMachine["TargetOfRunAwayFromTower"] = Vector(mypos[1] - 400,mypos[2] - 400);
+        npcBot:Action_MoveToLocation(StateMachine["TargetOfRunAwayFromTower"]);
         return;
     else
-        if(GetUnitToLocationDistance(npcBot,TargetOfRunAwayFromTower) < 100) then
+        if(GetUnitToLocationDistance(npcBot,StateMachine["TargetOfRunAwayFromTower"]) < 100) then
             -- we are far enough from tower,return to normal state.
-            TargetOfRunAwayFromTower = nil;
+            StateMachine["TargetOfRunAwayFromTower"] = nil;
             StateMachine.State = STATE_IDLE;
             return;
         end
@@ -506,12 +524,13 @@ StateMachine[STATE_RETREAT] = StateRetreat;
 StateMachine[STATE_GOTO_COMFORT_POINT] = StateGotoComfortPoint;
 StateMachine[STATE_FIGHTING] = StateFighting;
 StateMachine[STATE_RUN_AWAY] = StateRunAway;
+StateMachine["totalLevelOfAbilities"] = 0;
 
 
 local LinaAbilityPriority = {"lina_laguna_blade",
 "lina_dragon_slave","lina_light_strike_array","lina_fiery_soul"};
 
-local function ThinkLvlupAbility()
+local function ThinkLvlupAbility(StateMachine)
     -- Is there a bug? http://dev.dota2.com/showthread.php?t=274436
     local npcBot = GetBot();
     --[[
@@ -521,10 +540,22 @@ local function ThinkLvlupAbility()
     npcBot:Action_LevelAbility("lina_fiery_soul");
     ]]
 
-    for _,AbilityName in pairs(LinaAbilityPriority)
+    --[[
+        for _,AbilityName in pairs(LinaAbilityPriority)
     do
         -- USELESS BREAK : because valve does not check ability points
         if TryToUpgradeAbility(AbilityName) then
+            break;
+        end
+    end
+    ]]
+    
+
+    for k, ability_name in pairs(LinaAbilityPriority) do
+        local ability = npcBot:GetAbilityByName(ability_name);
+        if (ability:CanAbilityBeUpgraded() and ability:GetLevel()<ability:GetMaxLevel() and StateMachine["totalLevelOfAbilities"] < PerryGetHeroLevel()) then
+            ability:UpgradeAbility();
+            StateMachine["totalLevelOfAbilities"] = StateMachine["totalLevelOfAbilities"] + 1;
             break;
         end
     end
@@ -537,7 +568,7 @@ function Think(  )
     --update
     local npcBot = GetBot();
     --print(GetLocationAlongLane(2,0.9));
-    ThinkLvlupAbility();
+    ThinkLvlupAbility(StateMachine);
     StateMachine[StateMachine.State](StateMachine);
 
     if(PrevState ~= StateMachine.State) then

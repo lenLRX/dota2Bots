@@ -237,7 +237,6 @@ function ConsiderDragonSlave(abilityDS)
 	local nRadius = abilityDS:GetSpecialValueInt( "dragon_slave_width_end" );
 	local nCastRange = abilityDS:GetCastRange();
 	local nDamage = abilityDS:GetAbilityDamage();
-	--print("dragon_slave damage:" .. nDamage);
 
 	--------------------------------------
 	-- Mode based usage
