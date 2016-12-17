@@ -46,11 +46,11 @@ local function ConsiderFighting(StateMachine)
         do
             if(npcBot:WasRecentlyDamagedByHero(npcEnemy,1)) then
                 -- got the enemy who attacks me, kill him!--
-                StateMachine[EnemyToKill] = npcEnemy;
+                StateMachine["EnemyToKill"] = npcEnemy;
                 ShouldFight = true;
                 break;
             elseif(GetUnitToUnitDistance(npcBot,npcEnemy) < 500) then
-                StateMachine[EnemyToKill] = npcEnemy;
+                StateMachine["EnemyToKill"] = npcEnemy;
                 ShouldFight = true;
                 break;
             end
@@ -267,7 +267,7 @@ local function StateIdle(StateMachine)
         return;
     elseif(npcBot:GetAttackTarget() ~= nil) then
         if(npcBot:GetAttackTarget():IsHero()) then
-            StateMachine[EnemyToKill] = npcBot:GetAttackTarget();
+            StateMachine["EnemyToKill"] = npcBot:GetAttackTarget();
             print("auto attacking: "..npcBot:GetAttackTarget():GetUnitName());
             StateMachine.State = STATE_FIGHTING;
             return;
@@ -391,9 +391,9 @@ local function StateFighting(StateMachine)
         return;
     end
 
-    if(IsTowerAttackingMe() and npcBot:GetHealth() < StateMachine[EnemyToKill]:GetHealth()) then
+    if(IsTowerAttackingMe() and npcBot:GetHealth() < StateMachine["EnemyToKill"]:GetHealth()) then
         StateMachine.State = STATE_RUN_AWAY;
-    elseif(not StateMachine[EnemyToKill]:CanBeSeen() or not StateMachine[EnemyToKill]:IsAlive()) then
+    elseif(not StateMachine["EnemyToKill"]:CanBeSeen() or not StateMachine["EnemyToKill"]:IsAlive()) then
         -- lost enemy 
         print("lost enemy");
         StateMachine.State = STATE_IDLE;
@@ -408,8 +408,8 @@ local function StateFighting(StateMachine)
         -- Consider using each ability
         
         local castLBDesire, castLBTarget = ConsiderLagunaBlade(abilityLB);
-        local castLSADesire, castLSALocation = ConsiderLightStrikeArrayFighting(abilityLSA,StateMachine[EnemyToKill]);
-        local castDSDesire, castDSLocation = ConsiderDragonSlaveFighting(abilityDS,StateMachine[EnemyToKill]);
+        local castLSADesire, castLSALocation = ConsiderLightStrikeArrayFighting(abilityLSA,StateMachine["EnemyToKill"]);
+        local castDSDesire, castDSLocation = ConsiderDragonSlaveFighting(abilityDS,StateMachine["EnemyToKill"]);
 
         if ( castLBDesire > 0 ) 
         then
@@ -430,29 +430,29 @@ local function StateFighting(StateMachine)
         end
 
         -- LSA is castable but out of range, get closer!--
-        if(abilityLSA:IsFullyCastable() and CanCastLightStrikeArrayOnTarget(StateMachine[EnemyToKill])) then
-            npcBot:Action_MoveToLocation(StateMachine[EnemyToKill]:GetLocation());
+        if(abilityLSA:IsFullyCastable() and CanCastLightStrikeArrayOnTarget(StateMachine["EnemyToKill"])) then
+            npcBot:Action_MoveToLocation(StateMachine["EnemyToKill"]:GetLocation());
             return;
         end
 
         if(not abilityLSA:IsFullyCastable() and 
-        not abilityDS:IsFullyCastable() or StateMachine[EnemyToKill]:IsMagicImmune()) then
+        not abilityDS:IsFullyCastable() or StateMachine["EnemyToKill"]:IsMagicImmune()) then
             local extraHP = 0;
             if(abilityLB:IsFullyCastable()) then
                 local LBnDamage = abilityLB:GetSpecialValueInt( "damage" );
                 local LBeDamageType = npcBot:HasScepter() and DAMAGE_TYPE_PURE or DAMAGE_TYPE_MAGICAL;
-                extraHP = StateMachine[EnemyToKill]:GetActualDamage(LBnDamage,LBeDamageType);
+                extraHP = StateMachine["EnemyToKill"]:GetActualDamage(LBnDamage,LBeDamageType);
             end
 
-            if(StateMachine[EnemyToKill]:GetHealth() - extraHP > npcBot:GetHealth()) then
+            if(StateMachine["EnemyToKill"]:GetHealth() - extraHP > npcBot:GetHealth()) then
                 StateMachine.State = STATE_RUN_AWAY;
                 return;
             end
         end
 
 
-        if(npcBot:GetAttackTarget() ~= StateMachine[EnemyToKill]) then
-            npcBot:Action_AttackUnit(StateMachine[EnemyToKill],false);
+        if(npcBot:GetAttackTarget() ~= StateMachine["EnemyToKill"]) then
+            npcBot:Action_AttackUnit(StateMachine["EnemyToKill"],false);
         end
 
     end
