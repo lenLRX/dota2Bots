@@ -60,21 +60,18 @@ local function ConsiderAttackCreeps()
 
     if ( castLBDesire > castLSADesire and castLBDesire > castDSDesire ) 
 	then
-        LastEnemyToBeAttacked = nil;
 		npcBot:Action_UseAbilityOnEntity( abilityLB, castLBTarget );
 		return;
 	end
 
 	if ( castLSADesire > 0 ) 
 	then
-        LastEnemyToBeAttacked = nil;
 		npcBot:Action_UseAbilityOnLocation( abilityLSA, castLSALocation );
 		return;
 	end
 
 	if ( castDSDesire > 0 ) 
 	then
-        LastEnemyToBeAttacked = nil;
 		npcBot:Action_UseAbilityOnLocation( abilityDS, castDSLocation );
 		return;
 	end
@@ -142,7 +139,7 @@ local function ConsiderAttackCreeps()
     if(NearbyEnemyHeroes ~= nil) then
         for _,npcEnemy in pairs( NearbyEnemyHeroes )
         do
-            if(npcBot:GetAttackTarget() == nil) then
+            if(DotaBotUtility.NilOrDead(npcBot:GetAttackTarget())) then
                 npcBot:Action_AttackUnit(npcEnemy,false);
                 return;
             end
@@ -157,17 +154,22 @@ local function GetComfortPoint(creeps)
     local x_pos_sum = 0;
     local y_pos_sum = 0;
     local count = 0;
+    local meele_coefficient = 5;-- Consider meele creeps first
+    local coefficient = 1;
     for creep_k,creep in pairs(creeps)
     do
         local creep_name = creep:GetUnitName();
         local meleepos = string.find( creep_name,"melee");
-        --if(meleepos ~= nil) then
-        if(true) then
-            creep_pos = creep:GetLocation();
-            x_pos_sum = x_pos_sum + creep_pos[1];
-            y_pos_sum = y_pos_sum + creep_pos[2];
-            count = count + 1;
+        if(meleepos ~= nil) then
+            coefficient = meele_coefficient;
+        else
+            coefficient = 1;
         end
+
+        creep_pos = creep:GetLocation();
+        x_pos_sum = x_pos_sum + coefficient * creep_pos[1];
+        y_pos_sum = y_pos_sum + coefficient * creep_pos[2];
+        count = count + coefficient;
     end
 
     local avg_pos_x = x_pos_sum / count;
@@ -422,22 +424,25 @@ local function StateFighting(StateMachine)
 
         if ( castLBDesire > 0 ) 
         then
-            LastEnemyToBeAttacked = nil;
             npcBot:Action_UseAbilityOnEntity( abilityLB, castLBTarget );
             return;
         end
 
         if ( castLSADesire > 0 ) 
         then
-            LastEnemyToBeAttacked = nil;
             npcBot:Action_UseAbilityOnLocation( abilityLSA, castLSALocation );
             return;
         end
 
         if ( castDSDesire > 0 ) 
         then
-            LastEnemyToBeAttacked = nil;
             npcBot:Action_UseAbilityOnLocation( abilityDS, castDSLocation );
+            return;
+        end
+
+        -- LSA is castable but out of range, get closer!--
+        if(abilityLSA:IsFullyCastable() and CanCastLightStrikeArrayOnTarget(EnemyToKill)) then
+            npcBot:Action_MoveToLocation(EnemyToKill:GetLocation());
             return;
         end
 
