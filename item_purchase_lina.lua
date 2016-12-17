@@ -2,12 +2,12 @@
 --"item_flask" == heal flask
 
 local tableItemsToBuy = { 
-	            "item_ring_of_regen",
 				"item_mantle",
 				"item_circlet",
 				"item_recipe_null_talisman",
 				"item_blight_stone",
 				"item_boots",
+				"item_ring_of_regen",
 				"item_robe",
 				"item_gloves",
 				"item_gloves",
