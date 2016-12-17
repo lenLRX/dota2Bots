@@ -382,7 +382,7 @@ local function StateGotoComfortPoint(StateMachine)
             --print("mypos "..mypos[1]..mypos[2]);
             --print("comfort_pt "..pt[1]..pt[2]);
             npcBot:Action_MoveToLocation(pt);
-        else
+        elseif (d < 100) then
             StateMachine.State = STATE_ATTACKING_CREEP;
         end
         return;
