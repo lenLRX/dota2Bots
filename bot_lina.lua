@@ -8,6 +8,7 @@
 ]]
 
 local ValveAbilityUse = require(GetScriptDirectory().."/dev/ability_item_usage_lina");
+local Constant = require(GetScriptDirectory().."/dev/constant_each_side");
 local DotaBotUtility = require(GetScriptDirectory().."/utility");
 
 local STATE_IDLE = "STATE_IDLE";
@@ -211,9 +212,11 @@ local function GetComfortPoint(creeps)
     local avg_pos_y = y_pos_sum / count;
 
     if(count > 0) then
-        -- I assume ComfortPoint is 600 from the avg point 
-        --print("avg_pos : " .. avg_pos_x .. " , " .. avg_pos_y);
-        return Vector(avg_pos_x - 600 / 1.414,avg_pos_y - 600 / 1.414);
+        if ( GetTeam() == TEAM_RADIANT ) then 
+            return Vector(avg_pos_x - 600 / 1.414,avg_pos_y - 600 / 1.414);
+        elseif ( GetTeam() == TEAM_DIRE ) then
+            return Vector(avg_pos_x + 600 / 1.414,avg_pos_y + 600 / 1.414);
+        end;
     else
         return nil;
     end;
@@ -248,7 +251,7 @@ local function IsTowerAttackingMe()
     if(#NearbyTowers > 0) then
         for _,tower in pairs( NearbyTowers)
         do
-            if(GetUnitToUnitDistance(tower,npcBot) < 900) then
+            if(GetUnitToUnitDistance(tower,npcBot) < 900 and tower:IsAlive()) then
                 print("Attacked by tower");
                 return true;
             end
@@ -350,8 +353,7 @@ local function StateRetreat(StateMachine)
 
             Got Vector from marko.polo at http://dev.dota2.com/showthread.php?t=274301
     ]]
-    home_pos = Vector(-7000,-7000);
-    npcBot:Action_MoveToLocation(home_pos);
+    npcBot:Action_MoveToLocation(Constant.HomePosition());
 
     if(npcBot:GetHealth() == npcBot:GetMaxHealth() and npcBot:GetMana() == npcBot:GetMaxMana()) then
         StateMachine.State = STATE_IDLE;
@@ -403,7 +405,7 @@ local function StateFighting(StateMachine)
         return;
     end
 
-    if(IsTowerAttackingMe() and npcBot:GetHealth() < StateMachine["EnemyToKill"]:GetHealth()) then
+    if(IsTowerAttackingMe()) then
         StateMachine.State = STATE_RUN_AWAY;
     elseif(not StateMachine["EnemyToKill"]:CanBeSeen() or not StateMachine["EnemyToKill"]:IsAlive()) then
         -- lost enemy 
@@ -472,36 +474,34 @@ end
 
 local function StateRunAway(StateMachine)
     local npcBot = GetBot();
-    --print("debug: enter runaway");
-    --print(StateMachine["TargetOfRunAwayFromTower"])
 
     if(npcBot:IsAlive() == false) then
         StateMachine.State = STATE_IDLE;
-        StateMachine["TargetOfRunAwayFromTower"] = nil;
-
-        --print("debug: enter runaway");
-        --print(StateMachine["TargetOfRunAwayFromTower"])
+        StateMachine["RunAwayFromLocation"] = nil;
         return;
     end
 
     if(ShouldRetreat()) then
         StateMachine.State = STATE_RETREAT;
-        StateMachine["TargetOfRunAwayFromTower"] = nil;
+        StateMachine["RunAwayFromLocation"] = nil;
         return;
     end
 
     local mypos = npcBot:GetLocation();
 
-    if(StateMachine["TargetOfRunAwayFromTower"] == nil) then
+    if(StateMachine["RunAwayFromLocation"] == nil) then
         --set the target to go back
-        StateMachine["TargetOfRunAwayFromTower"] = Vector(mypos[1] - 400,mypos[2] - 400);
-        npcBot:Action_MoveToLocation(StateMachine["TargetOfRunAwayFromTower"]);
+        StateMachine["RunAwayFromLocation"] = npcBot:GetLocation();
+        npcBot:Action_MoveToLocation(Constant.HomePosition());
         return;
     else
-        if(GetUnitToLocationDistance(npcBot,StateMachine["TargetOfRunAwayFromTower"]) < 100) then
+        if(GetUnitToLocationDistance(npcBot,StateMachine["RunAwayFromLocation"]) > 400) then
             -- we are far enough from tower,return to normal state.
-            StateMachine["TargetOfRunAwayFromTower"] = nil;
+            StateMachine["RunAwayFromLocation"] = nil;
             StateMachine.State = STATE_IDLE;
+            return;
+        else
+            npcBot:Action_MoveToLocation(StateMachine["RunAwayFromLocation"]);
             return;
         end
     end
