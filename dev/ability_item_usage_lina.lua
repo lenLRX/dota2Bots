@@ -102,7 +102,31 @@ function CanCastLagunaBladeOnTarget( npcTarget )
 	return npcTarget:CanBeSeen() and npcTarget:IsHero() and ( GetBot():HasScepter() or not npcTarget:IsMagicImmune() ) and not npcTarget:IsInvulnerable();
 end
 
+function CanCastCycloneOnTarget( npcTarget )
+	return npcTarget:CanBeSeen() and not npcTarget:IsMagicImmune() and not npcTarget:IsInvulnerable();
+end
+
 ----------------------------------------------------------------------------------------------------
+
+function ConsiderCyclone(cyclone,enemy)
+    local npcBot = GetBot();
+
+	-- Make sure it's castable
+	if ( not cyclone:IsFullyCastable() ) then 
+		return false;
+	end
+
+	local nCastRange = cyclone:GetCastRange();
+	local EnemyLocation = predictPosition(enemy,1);
+	local d = GetUnitToLocationDistance(npcBot,EnemyLocation);
+
+	if (d < nCastRange and CanCastCycloneOnTarget( enemy ) ) 
+	then
+		return true;
+	end
+
+	
+end
 
 function ConsiderLightStrikeArrayFighting(abilityLSA,enemy)
     local npcBot = GetBot();
@@ -366,3 +390,4 @@ function predictPosition(hero,t)
 	ret[2] = ret[2] + t * v[2];
 	return hero:GetLocation();
 end
+

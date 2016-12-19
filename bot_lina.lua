@@ -230,8 +230,8 @@ local function IsItemAvailable(item_name)
     local npcBot = GetBot();
     -- query item code by Hewdraw
     for i = 0, 5, 1 do
-        local item = hero:GetItemInSlot(i);
-        if(item and item:IsFullyCastable() and item:GetName() == item_name) then
+        local item = npcBot:GetItemInSlot(i);
+        if(item and item:GetName() == item_name and item:IsFullyCastable()) then
             return item;
         end
     end
@@ -401,23 +401,65 @@ end
 local function StateFighting(StateMachine)
     local npcBot = GetBot();
     if(npcBot:IsAlive() == false) then
+        StateMachine["cyclone dota time"] = nil;
         StateMachine.State = STATE_IDLE;
         return;
     end
 
     if(IsTowerAttackingMe()) then
+        StateMachine["cyclone dota time"] = nil;
         StateMachine.State = STATE_RUN_AWAY;
     elseif(not StateMachine["EnemyToKill"]:CanBeSeen() or not StateMachine["EnemyToKill"]:IsAlive()) then
         -- lost enemy 
         print("lost enemy");
+        StateMachine["cyclone dota time"] = nil;
         StateMachine.State = STATE_IDLE;
         return;
     else
         if ( npcBot:IsUsingAbility() ) then return end;
 
+        local cyclone = IsItemAvailable("item_cyclone");
+
+        if(cyclone ~= nil) then
+            if(ConsiderCyclone(cyclone,StateMachine["EnemyToKill"])) then
+                npcBot:Action_UseAbilityOnEntity(cyclone,StateMachine["EnemyToKill"]);
+                StateMachine["cyclone dota time"] = GameTime();
+                return;
+            elseif(cyclone:IsFullyCastable()) then
+                -- move closer to cast cyclone
+                npcBot:Action_MoveToLocation(StateMachine["EnemyToKill"]:GetLocation());
+                return;
+            end
+        end
+
         local abilityLSA = npcBot:GetAbilityByName( "lina_light_strike_array" );
         local abilityDS = npcBot:GetAbilityByName( "lina_dragon_slave" );
         local abilityLB = npcBot:GetAbilityByName( "lina_laguna_blade" );
+
+        local Lina_Cyclone_LSA_Combo_Delay = 1.5;
+
+        if(StateMachine["cyclone dota time"] ~= nil) then
+            -- Consider LSA after cyclone
+            -- Cast LSA 0.5s before cyclone ends
+            if(abilityLSA:IsFullyCastable() and GameTime() - StateMachine["cyclone dota time"] > Lina_Cyclone_LSA_Combo_Delay) then
+                if(DotaBotUtility.AbilityOutOfRange4Unit(abilityLSA,StateMachine["EnemyToKill"])) then
+                    -- move closer to cast LSA
+                    npcBot:Action_MoveToLocation(StateMachine["EnemyToKill"]:GetLocation());
+                    return;
+                else
+                    npcBot:Action_UseAbilityOnLocation( abilityLSA, StateMachine["EnemyToKill"]:GetLocation());
+                    StateMachine["cyclone dota time"] = nil;
+                    return;
+                end
+            elseif(abilityLSA:IsFullyCastable() and GameTime() - StateMachine["cyclone dota time"] < Lina_Cyclone_LSA_Combo_Delay) then
+                if(DotaBotUtility.AbilityOutOfRange4Unit(abilityLSA,StateMachine["EnemyToKill"])) then
+                    -- move closer to cast LSA
+                    npcBot:Action_MoveToLocation(StateMachine["EnemyToKill"]:GetLocation());
+                    return;
+                end
+            end
+        end
+        
 
         -- Consider using each ability
         
@@ -567,7 +609,6 @@ function Think(  )
     -- Think this item( ... )
     --update
     local npcBot = GetBot();
-    --print(GetLocationAlongLane(2,0.9));
     ThinkLvlupAbility(StateMachine);
     StateMachine[StateMachine.State](StateMachine);
 

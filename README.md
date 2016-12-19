@@ -15,11 +15,12 @@ If lina is attacked,she will try to kill enemy until enemy is dead or missing.
 
 Lina will never try to go into the tower's range.But if lina is angry,she will ignore anything.
 
+Now lina got cyclone LightStrikeArray combo!
+
 
 TODO:
-Item combo: cyclone TDG combo
 better interaction with tower.
-better last hit timing and deny.
+better last hit and deny timing .
 
 
 start learing lua since 2016-12-13.

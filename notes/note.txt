@@ -1,0 +1,11 @@
+local cyclone = IsItemAvailable("item_cyclone");
+if cyclone then
+    print("cyclone damage: " .. cyclone:GetAbilityDamage());
+    damage is 0
+    print("cyclone cast range: "..cyclone:GetCastRange());
+    cast range 575, fine.
+end
+
+cheats:
+
+dota_bot_give_gold 10000
