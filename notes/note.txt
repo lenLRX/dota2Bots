@@ -6,6 +6,43 @@ if cyclone then
     cast range 575, fine.
 end
 
+Vector MetaTable
+
+function: 0x00216460
+Length2D
+function: 0x002165d8
+__unm
+function: 0x00216630
+Dot
+function: 0x00216808
+Normalized
+function: 0x00216898
+Length
+function: 0x00216590
+Cross
+function: 0x00216850
+__mul
+function: 0x002164d8
+__newindex
+function: 0x00216488
+__len
+function: 0x00216658
+__add
+function: 0x00216428
+__eq
+function: 0x00216568
+__sub
+function: 0x00216540
+__div
+function: 0x00216500
+__tostring
+function: 0x002164b0
+__index
+function: 0x00216460
+
+print((Vector(300,400,200)-Vector(200,300,0)):Length());  3D Length
+print((Vector(300,400,200)-Vector(200,300,0)):Length2D());  2D Length
+
 cheats:
 
 dota_bot_give_gold 10000

@@ -25,6 +25,8 @@ local LinaRetreatMPThreshold = 0.2;
 
 local STATE = STATE_IDLE;
 
+LANE = LANE_BOT
+
 ----------------- local utility functions reordered for lua local visibility--------
 --Perry's code from http://dev.dota2.com/showthread.php?t=274837
 local function PerryGetHeroLevel()
@@ -212,11 +214,15 @@ local function GetComfortPoint(creeps)
     local avg_pos_y = y_pos_sum / count;
 
     if(count > 0) then
-        if ( GetTeam() == TEAM_RADIANT ) then 
-            return Vector(avg_pos_x - 600 / 1.414,avg_pos_y - 600 / 1.414);
-        elseif ( GetTeam() == TEAM_DIRE ) then
-            return Vector(avg_pos_x + 600 / 1.414,avg_pos_y + 600 / 1.414);
-        end;
+        --[[
+            if ( GetTeam() == TEAM_RADIANT ) then 
+                return Vector(avg_pos_x - 600 / 1.414,avg_pos_y - 600 / 1.414);
+            elseif ( GetTeam() == TEAM_DIRE ) then
+                return Vector(avg_pos_x + 600 / 1.414,avg_pos_y + 600 / 1.414);
+            end;
+        ]]
+        
+        return DotaBotUtility:GetNearByPrecursorPointOnLane(LANE,Vector(avg_pos_x,avg_pos_y));
     else
         return nil;
     end;
@@ -294,7 +300,7 @@ local function StateIdle(StateMachine)
         local mypos = npcBot:GetLocation();
         
         local d = GetUnitToLocationDistance(npcBot,pt);
-        if(d > 200) then
+        if(d > 250) then
             StateMachine.State = STATE_GOTO_COMFORT_POINT;
         else
             StateMachine.State = STATE_ATTACKING_CREEP;
@@ -302,7 +308,8 @@ local function StateIdle(StateMachine)
         return;
     end
 
-    target = GetLocationAlongLane(2,0.95);
+    --target = GetLocationAlongLane(LANE,0.95);
+    target = DotaBotUtility:GetNearBySuccessorPointOnLane(LANE);
     npcBot:Action_AttackMove(target);
     
 
@@ -329,7 +336,7 @@ local function StateAttackingCreep(StateMachine)
     elseif(#creeps > 0 and pt ~= nil) then
         local mypos = npcBot:GetLocation();
         local d = GetUnitToLocationDistance(npcBot,pt);
-        if(d > 200) then
+        if(d > 250) then
             StateMachine.State = STATE_GOTO_COMFORT_POINT;
         else
             ConsiderAttackCreeps();
@@ -370,6 +377,7 @@ local function StateGotoComfortPoint(StateMachine)
 
     local creeps = npcBot:GetNearbyCreeps(1000,true);
     local pt = GetComfortPoint(creeps);
+    
 
     if(ShouldRetreat()) then
         StateMachine.State = STATE_RETREAT;
@@ -381,14 +389,15 @@ local function StateGotoComfortPoint(StateMachine)
         return;
     elseif(#creeps > 0 and pt ~= nil) then
         local mypos = npcBot:GetLocation();
+        --pt[3] = npcBot:GetLocation()[3];
         
-        local d = GetUnitToLocationDistance(npcBot,pt);
-        if(d > 200) then
-            --print("mypos "..mypos[1]..mypos[2]);
-            --print("comfort_pt "..pt[1]..pt[2]);
-            npcBot:Action_MoveToLocation(pt);
-        elseif (d < 100) then
+        --local d = GetUnitToLocationDistance(npcBot,pt);
+        local d = (npcBot:GetLocation() - pt):Length2D();
+ 
+        if (d < 200) then
             StateMachine.State = STATE_ATTACKING_CREEP;
+        else
+            npcBot:Action_MoveToLocation(pt);
         end
         return;
     else
@@ -534,7 +543,8 @@ local function StateRunAway(StateMachine)
     if(StateMachine["RunAwayFromLocation"] == nil) then
         --set the target to go back
         StateMachine["RunAwayFromLocation"] = npcBot:GetLocation();
-        npcBot:Action_MoveToLocation(Constant.HomePosition());
+        --npcBot:Action_MoveToLocation(Constant.HomePosition());
+        npcBot:Action_MoveToLocation(DotaBotUtility:GetNearByPrecursorPointOnLane(LANE));
         return;
     else
         if(GetUnitToLocationDistance(npcBot,StateMachine["RunAwayFromLocation"]) > 400) then
@@ -543,7 +553,7 @@ local function StateRunAway(StateMachine)
             StateMachine.State = STATE_IDLE;
             return;
         else
-            npcBot:Action_MoveToLocation(StateMachine["RunAwayFromLocation"]);
+            npcBot:Action_MoveToLocation(DotaBotUtility:GetNearByPrecursorPointOnLane(LANE));
             return;
         end
     end
@@ -572,6 +582,13 @@ StateMachine["totalLevelOfAbilities"] = 0;
 local LinaAbilityPriority = {"lina_laguna_blade",
 "lina_dragon_slave","lina_light_strike_array","lina_fiery_soul"};
 
+local LinaTalents = {
+    [10] = "special_bonus_mp_250",
+    [15] = "bonus_cast_range_100",
+    [20] = "bonus_attack_range_150",
+    [25] = "special_bonus_unique_lina_1"
+};
+
 local function ThinkLvlupAbility(StateMachine)
     -- Is there a bug? http://dev.dota2.com/showthread.php?t=274436
     local npcBot = GetBot();
@@ -590,15 +607,23 @@ local function ThinkLvlupAbility(StateMachine)
             break;
         end
     end
-    ]]
-    
+    ]]   
 
-    for k, ability_name in pairs(LinaAbilityPriority) do
-        local ability = npcBot:GetAbilityByName(ability_name);
-        if (ability:CanAbilityBeUpgraded() and ability:GetLevel()<ability:GetMaxLevel() and StateMachine["totalLevelOfAbilities"] < PerryGetHeroLevel()) then
-            ability:UpgradeAbility();
-            StateMachine["totalLevelOfAbilities"] = StateMachine["totalLevelOfAbilities"] + 1;
-            break;
+    --npcBot:Action_LevelAbility("special_bonus_mp_250");
+
+    local HeroLevel = PerryGetHeroLevel();
+
+    if(LinaTalents[HeroLevel] ~= nil and StateMachine["totalLevelOfAbilities"] < HeroLevel) then
+        npcBot:Action_LevelAbility(LinaTalents[HeroLevel]);
+        StateMachine["totalLevelOfAbilities"] = StateMachine["totalLevelOfAbilities"] + 1;
+    else
+        for k, ability_name in pairs(LinaAbilityPriority) do
+            local ability = npcBot:GetAbilityByName(ability_name);
+            if (ability:CanAbilityBeUpgraded() and ability:GetLevel()<ability:GetMaxLevel() and StateMachine["totalLevelOfAbilities"] < HeroLevel) then
+                ability:UpgradeAbility();
+                StateMachine["totalLevelOfAbilities"] = StateMachine["totalLevelOfAbilities"] + 1;
+                break;
+            end
         end
     end
 end
@@ -608,6 +633,7 @@ local PrevState = "none";
 function Think(  )
     -- Think this item( ... )
     --update
+    
     local npcBot = GetBot();
     ThinkLvlupAbility(StateMachine);
     StateMachine[StateMachine.State](StateMachine);
