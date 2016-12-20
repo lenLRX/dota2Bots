@@ -76,6 +76,50 @@ function M:GetNearBySuccessorPointOnLane(Lane,Location)
     return PointsOnLane[0];
 end
 
+function M.IsItemAvailable(item_name)
+    local npcBot = GetBot();
+    -- query item code by Hewdraw
+    for i = 0, 5, 1 do
+        local item = npcBot:GetItemInSlot(i);
+        if(item and item:GetName() == item_name and item:IsFullyCastable()) then
+            return item;
+        end
+    end
+    return nil;
+end
 
+function M:GetComfortPoint(creeps,LANE)
+    local npcBot = GetBot();
+    local mypos = npcBot:GetLocation();
+    local x_pos_sum = 0;
+    local y_pos_sum = 0;
+    local count = 0;
+    local meele_coefficient = 5;-- Consider meele creeps first
+    local coefficient = 1;
+    for creep_k,creep in pairs(creeps)
+    do
+        local creep_name = creep:GetUnitName();
+        local meleepos = string.find( creep_name,"melee");
+        if(meleepos ~= nil) then
+            coefficient = meele_coefficient;
+        else
+            coefficient = 1;
+        end
+
+        creep_pos = creep:GetLocation();
+        x_pos_sum = x_pos_sum + coefficient * creep_pos[1];
+        y_pos_sum = y_pos_sum + coefficient * creep_pos[2];
+        count = count + coefficient;
+    end
+
+    local avg_pos_x = x_pos_sum / count;
+    local avg_pos_y = y_pos_sum / count;
+
+    if(count > 0) then      
+        return self:GetNearByPrecursorPointOnLane(LANE,Vector(avg_pos_x,avg_pos_y));
+    else
+        return nil;
+    end;
+end
 
 return M;

@@ -22,5 +22,7 @@ TODO:
 better interaction with tower.
 better last hit and deny timing .
 
+Now Working on Zuus
+
 
 start learing lua since 2016-12-13.

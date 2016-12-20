@@ -186,64 +186,6 @@ local function ConsiderAttackCreeps()
     
 end
 
-local function GetComfortPoint(creeps)
-    local npcBot = GetBot();
-    local mypos = npcBot:GetLocation();
-    local x_pos_sum = 0;
-    local y_pos_sum = 0;
-    local count = 0;
-    local meele_coefficient = 5;-- Consider meele creeps first
-    local coefficient = 1;
-    for creep_k,creep in pairs(creeps)
-    do
-        local creep_name = creep:GetUnitName();
-        local meleepos = string.find( creep_name,"melee");
-        if(meleepos ~= nil) then
-            coefficient = meele_coefficient;
-        else
-            coefficient = 1;
-        end
-
-        creep_pos = creep:GetLocation();
-        x_pos_sum = x_pos_sum + coefficient * creep_pos[1];
-        y_pos_sum = y_pos_sum + coefficient * creep_pos[2];
-        count = count + coefficient;
-    end
-
-    local avg_pos_x = x_pos_sum / count;
-    local avg_pos_y = y_pos_sum / count;
-
-    if(count > 0) then
-        --[[
-            if ( GetTeam() == TEAM_RADIANT ) then 
-                return Vector(avg_pos_x - 600 / 1.414,avg_pos_y - 600 / 1.414);
-            elseif ( GetTeam() == TEAM_DIRE ) then
-                return Vector(avg_pos_x + 600 / 1.414,avg_pos_y + 600 / 1.414);
-            end;
-        ]]
-        
-        return DotaBotUtility:GetNearByPrecursorPointOnLane(LANE,Vector(avg_pos_x,avg_pos_y));
-    else
-        return nil;
-    end;
-end
-
-
-
-
--- How to get iTree handles?
-local function IsItemAvailable(item_name)
-    local npcBot = GetBot();
-    -- query item code by Hewdraw
-    for i = 0, 5, 1 do
-        local item = npcBot:GetItemInSlot(i);
-        if(item and item:GetName() == item_name and item:IsFullyCastable()) then
-            return item;
-        end
-    end
-    return nil;
-end
-
 local function ShouldRetreat()
     local npcBot = GetBot();
     return npcBot:GetHealth()/npcBot:GetMaxHealth() 
@@ -276,7 +218,7 @@ local function StateIdle(StateMachine)
     end
 
     local creeps = npcBot:GetNearbyCreeps(1000,true);
-    local pt = GetComfortPoint(creeps);
+    local pt = DotaBotUtility:GetComfortPoint(creeps,,LANE);
 
     
 
@@ -323,7 +265,7 @@ local function StateAttackingCreep(StateMachine)
     end
 
     local creeps = npcBot:GetNearbyCreeps(1000,true);
-    local pt = GetComfortPoint(creeps);
+    local pt = DotaBotUtility:GetComfortPoint(creeps,LANE);
 
     if(ShouldRetreat()) then
         StateMachine.State = STATE_RETREAT;
@@ -376,7 +318,7 @@ local function StateGotoComfortPoint(StateMachine)
     end
 
     local creeps = npcBot:GetNearbyCreeps(1000,true);
-    local pt = GetComfortPoint(creeps);
+    local pt = DotaBotUtility:GetComfortPoint(creeps,LANE);
     
 
     if(ShouldRetreat()) then
@@ -427,7 +369,7 @@ local function StateFighting(StateMachine)
     else
         if ( npcBot:IsUsingAbility() ) then return end;
 
-        local cyclone = IsItemAvailable("item_cyclone");
+        local cyclone = DotaBotUtility.IsItemAvailable("item_cyclone");
 
         if(cyclone ~= nil) then
             if(ConsiderCyclone(cyclone,StateMachine["EnemyToKill"])) then
