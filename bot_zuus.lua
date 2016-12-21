@@ -346,11 +346,6 @@ local function StateFighting(StateMachine)
             end
         end
 
-
-        if(npcBot:GetAttackTarget() ~= StateMachine["EnemyToKill"]) then
-            npcBot:Action_AttackUnit(StateMachine["EnemyToKill"],false);
-        end
-
     end
 end
 
