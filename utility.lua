@@ -122,4 +122,16 @@ function M:GetComfortPoint(creeps,LANE)
     end;
 end
 
+function M:CourierThink()
+    local npcBot = GetBot();
+    for i = 9, 15, 1 do
+        local item = npcBot:GetItemInSlot(i);
+        if(item ~= nil and IsCourierAvailable()) then
+            --print("got item");
+            npcBot:Action_CourierDeliver();
+            return;
+        end
+    end
+end
+
 return M;

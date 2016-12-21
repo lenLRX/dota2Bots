@@ -23,7 +23,7 @@ local RetreatMPThreshold = 0.2;
 
 local STATE = STATE_IDLE;
 
-LANE = LANE_TOP
+LANE = LANE_BOT
 
 function CanCastALOnTarget( npcTarget )
 	return npcTarget:CanBeSeen() and not npcTarget:IsMagicImmune() and not npcTarget:IsInvulnerable();
@@ -346,6 +346,9 @@ local function StateFighting(StateMachine)
             end
         end
 
+        StateMachine.State = STATE_RUN_AWAY;
+        return;
+
     end
 end
 
@@ -453,6 +456,7 @@ function Think(  )
     --update
     
     local npcBot = GetBot();
+    DotaBotUtility:CourierThink();
     ThinkLvlupAbility(StateMachine);
     StateMachine[StateMachine.State](StateMachine);
 

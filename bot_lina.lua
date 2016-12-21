@@ -577,6 +577,7 @@ function Think(  )
     --update
     
     local npcBot = GetBot();
+    DotaBotUtility:CourierThink();
     ThinkLvlupAbility(StateMachine);
     StateMachine[StateMachine.State](StateMachine);
 
