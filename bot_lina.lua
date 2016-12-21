@@ -218,7 +218,7 @@ local function StateIdle(StateMachine)
     end
 
     local creeps = npcBot:GetNearbyCreeps(1000,true);
-    local pt = DotaBotUtility:GetComfortPoint(creeps,,LANE);
+    local pt = DotaBotUtility:GetComfortPoint(creeps,LANE);
 
     
 
@@ -526,7 +526,7 @@ local LinaAbilityPriority = {"lina_laguna_blade",
 
 local LinaTalents = {
     [10] = "special_bonus_mp_250",
-    [15] = "bonus_cast_range_100",
+    [15] = "bonus_cast_range_125",
     [20] = "bonus_attack_range_150",
     [25] = "special_bonus_unique_lina_1"
 };

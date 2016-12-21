@@ -25,6 +25,18 @@ local STATE = STATE_IDLE;
 
 LANE = LANE_TOP
 
+function CanCastALOnTarget( npcTarget )
+	return npcTarget:CanBeSeen() and not npcTarget:IsMagicImmune() and not npcTarget:IsInvulnerable();
+end
+
+function CanCastLBOnTarget( npcTarget )
+	return not npcTarget:IsMagicImmune() and not npcTarget:IsInvulnerable();
+end
+
+function CanCastTGWOnTarget( npcTarget )
+	return not npcTarget:IsMagicImmune() and not npcTarget:IsInvulnerable();
+end
+
 ----------------- local utility functions reordered for lua local visibility--------
 --Perry's code from http://dev.dota2.com/showthread.php?t=274837
 local function PerryGetHeroLevel()
@@ -160,8 +172,7 @@ local function StateIdle(StateMachine)
     elseif(IsTowerAttackingMe()) then
         StateMachine.State = STATE_RUN_AWAY;
         return;
-    --[[
-        elseif(npcBot:GetAttackTarget() ~= nil) then
+    elseif(npcBot:GetAttackTarget() ~= nil) then
         if(npcBot:GetAttackTarget():IsHero()) then
             StateMachine["EnemyToKill"] = npcBot:GetAttackTarget();
             print("auto attacking: "..npcBot:GetAttackTarget():GetUnitName());
@@ -171,7 +182,6 @@ local function StateIdle(StateMachine)
     elseif(ConsiderFighting(StateMachine)) then
         StateMachine.State = STATE_FIGHTING;
         return;
-    ]]
     
     elseif(#creeps > 0 and pt ~= nil) then
         local mypos = npcBot:GetLocation();
@@ -207,12 +217,9 @@ local function StateAttackingCreep(StateMachine)
         return;
     elseif(IsTowerAttackingMe()) then
         StateMachine.State = STATE_RUN_AWAY;
-    --[[
-        elseif(ConsiderFighting(StateMachine)) then
+    elseif(ConsiderFighting(StateMachine)) then
         StateMachine.State = STATE_FIGHTING;
         return;
-    ]]
-    
     elseif(#creeps > 0 and pt ~= nil) then
         local mypos = npcBot:GetLocation();
         local d = GetUnitToLocationDistance(npcBot,pt);
@@ -258,12 +265,9 @@ local function StateGotoComfortPoint(StateMachine)
         return;
     elseif(IsTowerAttackingMe()) then
         StateMachine.State = STATE_RUN_AWAY;
-    --[[
-        elseif(ConsiderFighting(StateMachine)) then
+    elseif(ConsiderFighting(StateMachine)) then
         StateMachine.State = STATE_FIGHTING;
         return;
-    ]]
-    
     elseif(#creeps > 0 and pt ~= nil) then
         local mypos = npcBot:GetLocation();
         --pt[3] = npcBot:GetLocation()[3];
@@ -287,103 +291,53 @@ end
 local function StateFighting(StateMachine)
     local npcBot = GetBot();
     if(npcBot:IsAlive() == false) then
-        StateMachine["cyclone dota time"] = nil;
         StateMachine.State = STATE_IDLE;
         return;
     end
 
     if(IsTowerAttackingMe()) then
-        StateMachine["cyclone dota time"] = nil;
         StateMachine.State = STATE_RUN_AWAY;
     elseif(not StateMachine["EnemyToKill"]:CanBeSeen() or not StateMachine["EnemyToKill"]:IsAlive()) then
         -- lost enemy 
         print("lost enemy");
-        StateMachine["cyclone dota time"] = nil;
         StateMachine.State = STATE_IDLE;
         return;
     else
         if ( npcBot:IsUsingAbility() ) then return end;
 
-        local cyclone = DotaBotUtility.IsItemAvailable("item_cyclone");
+        local abilityAL = npcBot:GetAbilityByName( "zuus_arc_lightning" );
+        local abilityLB = npcBot:GetAbilityByName( "zuus_lightning_bolt" );
+        local abilityTGW = npcBot:GetAbilityByName( "zuus_thundergods_wrath" );
 
-        if(cyclone ~= nil) then
-            if(ConsiderCyclone(cyclone,StateMachine["EnemyToKill"])) then
-                npcBot:Action_UseAbilityOnEntity(cyclone,StateMachine["EnemyToKill"]);
-                StateMachine["cyclone dota time"] = GameTime();
-                return;
-            elseif(cyclone:IsFullyCastable()) then
-                -- move closer to cast cyclone
-                npcBot:Action_MoveToLocation(StateMachine["EnemyToKill"]:GetLocation());
-                return;
-            end
-        end
+        local ALdamage = abilityAL:GetAbilityDamage();
+        local ALcastRange = abilityAL:GetCastRange();
 
-        local abilityLSA = npcBot:GetAbilityByName( "lina_light_strike_array" );
-        local abilityDS = npcBot:GetAbilityByName( "lina_dragon_slave" );
-        local abilityLB = npcBot:GetAbilityByName( "lina_laguna_blade" );
+        local LBdamage = abilityLB:GetAbilityDamage();
+        local LBcastRange = abilityLB:GetCastRange();
 
-        local Lina_Cyclone_LSA_Combo_Delay = 1.5;
+        local TGWdamage = abilityTGW:GetAbilityDamage();
 
-        if(StateMachine["cyclone dota time"] ~= nil) then
-            -- Consider LSA after cyclone
-            -- Cast LSA 0.5s before cyclone ends
-            if(abilityLSA:IsFullyCastable() and GameTime() - StateMachine["cyclone dota time"] > Lina_Cyclone_LSA_Combo_Delay) then
-                if(DotaBotUtility.AbilityOutOfRange4Unit(abilityLSA,StateMachine["EnemyToKill"])) then
-                    -- move closer to cast LSA
-                    npcBot:Action_MoveToLocation(StateMachine["EnemyToKill"]:GetLocation());
-                    return;
-                else
-                    npcBot:Action_UseAbilityOnLocation( abilityLSA, StateMachine["EnemyToKill"]:GetLocation());
-                    StateMachine["cyclone dota time"] = nil;
-                    return;
-                end
-            elseif(abilityLSA:IsFullyCastable() and GameTime() - StateMachine["cyclone dota time"] < Lina_Cyclone_LSA_Combo_Delay) then
-                if(DotaBotUtility.AbilityOutOfRange4Unit(abilityLSA,StateMachine["EnemyToKill"])) then
-                    -- move closer to cast LSA
-                    npcBot:Action_MoveToLocation(StateMachine["EnemyToKill"]:GetLocation());
-                    return;
-                end
-            end
-        end
-        
-
-        -- Consider using each ability
-        
-        local castLBDesire, castLBTarget = ConsiderLagunaBlade(abilityLB);
-        local castLSADesire, castLSALocation = ConsiderLightStrikeArrayFighting(abilityLSA,StateMachine["EnemyToKill"]);
-        local castDSDesire, castDSLocation = ConsiderDragonSlaveFighting(abilityDS,StateMachine["EnemyToKill"]);
-
-        if ( castLBDesire > 0 ) 
-        then
-            npcBot:Action_UseAbilityOnEntity( abilityLB, castLBTarget );
+        if(abilityAL:IsFullyCastable() and CanCastALOnTarget(StateMachine["EnemyToKill"])) then
+            npcBot:Action_UseAbilityOnEntity(abilityAL,StateMachine["EnemyToKill"]);
             return;
         end
 
-        if ( castLSADesire > 0 ) 
-        then
-            npcBot:Action_UseAbilityOnLocation( abilityLSA, castLSALocation );
+        if(abilityLB:IsFullyCastable() and CanCastLBOnTarget(StateMachine["EnemyToKill"])) then
+            npcBot:Action_UseAbilityOnLocation(abilityLB,StateMachine["EnemyToKill"]:GetLocation());
             return;
         end
 
-        if ( castDSDesire > 0 ) 
-        then
-            npcBot:Action_UseAbilityOnLocation( abilityDS, castDSLocation );
+        if(abilityTGW:IsFullyCastable() and CanCastTGWOnTarget(StateMachine["EnemyToKill"]) and 
+        StateMachine["EnemyToKill"]:GetActualDamage(TGWdamage,DAMAGE_TYPE_MAGICAL) >= StateMachine["EnemyToKill"]:GetHealth()) then
+            npcBot:Action_UseAbility(abilityTGW);
             return;
         end
 
-        -- LSA is castable but out of range, get closer!--
-        if(abilityLSA:IsFullyCastable() and CanCastLightStrikeArrayOnTarget(StateMachine["EnemyToKill"])) then
-            npcBot:Action_MoveToLocation(StateMachine["EnemyToKill"]:GetLocation());
-            return;
-        end
-
-        if(not abilityLSA:IsFullyCastable() and 
-        not abilityDS:IsFullyCastable() or StateMachine["EnemyToKill"]:IsMagicImmune()) then
+        if(not abilityAL:IsFullyCastable() and 
+        not abilityLB:IsFullyCastable() or StateMachine["EnemyToKill"]:IsMagicImmune()) then
             local extraHP = 0;
-            if(abilityLB:IsFullyCastable()) then
-                local LBnDamage = abilityLB:GetSpecialValueInt( "damage" );
-                local LBeDamageType = npcBot:HasScepter() and DAMAGE_TYPE_PURE or DAMAGE_TYPE_MAGICAL;
-                extraHP = StateMachine["EnemyToKill"]:GetActualDamage(LBnDamage,LBeDamageType);
+            if(abilityTGW:IsFullyCastable()) then
+                extraHP = StateMachine["EnemyToKill"]:GetActualDamage(TGWdamage,DAMAGE_TYPE_MAGICAL);
             end
 
             if(StateMachine["EnemyToKill"]:GetHealth() - extraHP > npcBot:GetHealth()) then
@@ -474,7 +428,7 @@ local ZuusAbilityMap = {
     [15] = "special_bonus_armor_5",
     [16] = "zuus_arc_lightning",
     [18] = "zuus_thundergods_wrath",
-    [20] = "special_bonus_movement_speed_30",
+    [20] = "special_bonus_movement_speed_35",
     [25] = "special_bonus_cast_range_200"
 };
 
