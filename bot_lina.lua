@@ -136,7 +136,8 @@ local function ConsiderAttackCreeps()
 
     if(weakest_creep ~= nil) then
         -- if creep's hp is lower than 70(because I don't Know how much is my damadge!!), try to last hit it.
-        if(DotaBotUtility.NilOrDead(npcBot:GetAttackTarget()) and lowest_hp < 100) then
+        if(DotaBotUtility.NilOrDead(npcBot:GetAttackTarget()) and 
+        lowest_hp < npcBot:GetEstimatedDamageToTarget( true, weakest_creep, 1.0, DAMAGE_TYPE_PHYSICAL ) + 30) then
             npcBot:Action_AttackUnit(weakest_creep,true);
             return;
         end
@@ -161,7 +162,7 @@ local function ConsiderAttackCreeps()
     if(weakest_creep ~= nil) then
         -- if creep's hp is lower than 70(because I don't Know how much is my damadge!!), try to last hit it.
         if(DotaBotUtility.NilOrDead(npcBot:GetAttackTarget()) and 
-        lowest_hp < 100 and 
+        lowest_hp < npcBot:GetEstimatedDamageToTarget( true, weakest_creep, 1.0, DAMAGE_TYPE_PHYSICAL ) + 30 and 
         weakest_creep:GetHealth() / weakest_creep:GetMaxHealth() < 0.5) then
             Attacking_creep = weakest_creep;
             npcBot:Action_AttackUnit(Attacking_creep,true);

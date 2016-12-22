@@ -81,7 +81,7 @@ function M.IsItemAvailable(item_name)
     -- query item code by Hewdraw
     for i = 0, 5, 1 do
         local item = npcBot:GetItemInSlot(i);
-        if(item and item:GetName() == item_name and item:IsFullyCastable()) then
+        if(item and item:GetName() == item_name) then
             return item;
         end
     end
@@ -122,11 +122,23 @@ function M:GetComfortPoint(creeps,LANE)
     end;
 end
 
+function M:HasEmptySlot()
+    local npcBot = GetBot();
+    -- query item code by Hewdraw
+    for i = 0, 5, 1 do
+        local item = npcBot:GetItemInSlot(i);
+        if(item == nil) then
+            return true;
+        end
+    end
+    return false;
+end
+
 function M:CourierThink()
     local npcBot = GetBot();
     for i = 9, 15, 1 do
         local item = npcBot:GetItemInSlot(i);
-        if(item ~= nil and IsCourierAvailable()) then
+        if((item ~= nil or npcBot:GetCourierValue() > 0) and IsCourierAvailable()) then
             --print("got item");
             npcBot:Action_CourierDeliver();
             return;

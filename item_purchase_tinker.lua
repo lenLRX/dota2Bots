@@ -5,11 +5,14 @@ local tableItemsToBuy = {
 				"item_mantle",
 				"item_circlet",
 				"item_recipe_null_talisman",
+				"item_bottle",
 				"item_boots",
+				"item_sobi_mask",
+				"item_ring_of_regen",
+                "item_recipe_soul_ring",
 				"item_recipe_travel_boots",
-                "item_ring_of_regen",
-                "item_sobi_mask",
-                "item_recipe_soul_ring"
+				"item_staff_of_wizardry",
+				"item_recipe_dagon"
 			};
 
 
