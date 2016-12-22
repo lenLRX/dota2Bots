@@ -23,7 +23,7 @@ local RetreatMPThreshold = 0.2;
 
 local STATE = STATE_IDLE;
 
-LANE = LANE_BOT
+LANE = LANE_TOP
 
 function CanCastALOnTarget( npcTarget )
 	return npcTarget:CanBeSeen() and not npcTarget:IsMagicImmune() and not npcTarget:IsInvulnerable();
@@ -445,7 +445,8 @@ local function ThinkLvlupAbility(StateMachine)
     local HeroLevel = PerryGetHeroLevel();
     if(ZuusDoneLvlupAbility[HeroLevel] == false) then
         npcBot:Action_LevelAbility(ZuusAbilityMap[HeroLevel]);
-        ZuusDoneLvlupAbility[HeroLevel] = true;
+        --keep trying lvlup skill since 12/22
+        --ZuusDoneLvlupAbility[HeroLevel] = true;
     end
 end
 
@@ -461,7 +462,7 @@ function Think(  )
     StateMachine[StateMachine.State](StateMachine);
 
     if(PrevState ~= StateMachine.State) then
-        print("STATE: "..StateMachine.State);
+        print("Zuus bot STATE: "..StateMachine.State);
         PrevState = StateMachine.State;
     end
 	

@@ -7,7 +7,6 @@
     Then Think() will call the function of current state.
 ]]
 
-local ValveAbilityUse = require(GetScriptDirectory().."/dev/ability_item_usage_lina");
 local Constant = require(GetScriptDirectory().."/dev/constant_each_side");
 local DotaBotUtility = require(GetScriptDirectory().."/utility");
 
@@ -20,12 +19,28 @@ local STATE_GOTO_COMFORT_POINT = "STATE_GOTO_COMFORT_POINT";
 local STATE_FIGHTING = "STATE_FIGHTING";
 local STATE_RUN_AWAY = "STATE_RUN_AWAY";
 
-local LinaRetreatHPThreshold = 0.3;
-local LinaRetreatMPThreshold = 0.2;
+local TinkerRetreatHPThreshold = 0.3;
+local TinkerRetreatMPThreshold = 0.2;
 
 local STATE = STATE_IDLE;
 
-LANE = LANE_BOT
+MoMradius = 900;
+
+LANE = LANE_MID
+
+local function CanCastOnTarget( npcTarget )
+	return npcTarget:CanBeSeen() and not npcTarget:IsMagicImmune() and not npcTarget:IsInvulnerable();
+end
+
+local function TinkerConsiderRearm()
+    local npcBot = GetBot();
+    local abilityLaser = npcBot:GetAbilityByName( "tinker_laser" );
+	local abilityMissile = npcBot:GetAbilityByName( "tinker_heat_seeking_missile" );
+	local abilityMoM = npcBot:GetAbilityByName( "tinker_march_of_the_machines" );
+    return not abilityMoM:IsCooldownReady() 
+    or not abilityMissile:IsCooldownReady() or
+    not abilityLaser:IsCooldownReady();
+end
 
 ----------------- local utility functions reordered for lua local visibility--------
 --Perry's code from http://dev.dota2.com/showthread.php?t=274837
@@ -38,17 +53,6 @@ local function PerryGetHeroLevel()
         return k
         end
     end
-end
-
-
-local function TryToUpgradeAbility(AbilityName)
-    local npcBot = GetBot();
-    local ability = npcBot:GetAbilityByName(AbilityName);
-    if ability:CanAbilityBeUpgraded() then
-        ability:UpgradeAbility();
-        return true;
-    end
-    return false;
 end
 
 local function ConsiderFighting(StateMachine)
@@ -80,41 +84,24 @@ local function ConsiderAttackCreeps()
     --print("ConsiderAttackCreeps");
     local npcBot = GetBot();
 
-    local EnemyCreeps = npcBot:GetNearbyCreeps(1000,true);
+    local EnemyCreeps = npcBot:GetNearbyCreeps(MoMradius,true);
     local AllyCreeps = npcBot:GetNearbyCreeps(1000,false);
 
     -- Check if we're already using an ability
-	if ( npcBot:IsUsingAbility() ) then return end;
+	if ( npcBot:IsUsingAbility() or npcBot:IsChanneling()) then return end;
 
-    local abilityLSA = npcBot:GetAbilityByName( "lina_light_strike_array" );
-	local abilityDS = npcBot:GetAbilityByName( "lina_dragon_slave" );
-	local abilityLB = npcBot:GetAbilityByName( "lina_laguna_blade" );
+    local abilityLaser = npcBot:GetAbilityByName( "tinker_laser" );
+	local abilityMissile = npcBot:GetAbilityByName( "tinker_heat_seeking_missile" );
+	local abilityMoM = npcBot:GetAbilityByName( "tinker_march_of_the_machines" );
+    local abilityRearm = npcBot:GetAbilityByName( "tinker_rearm" );
 
-    -- Consider using each ability
-    
-	local castLBDesire, castLBTarget = ConsiderLagunaBlade(abilityLB);
-	local castLSADesire, castLSALocation = ConsiderLightStrikeArray(abilityLSA);
-	local castDSDesire, castDSLocation = ConsiderDragonSlave(abilityDS);
+    local LaserDamage = abilityLaser:GetAbilityDamage();
+    local LaserCastRange = abilityLaser:GetCastRange();
 
-    if ( castLBDesire > castLSADesire and castLBDesire > castDSDesire ) 
-	then
-		npcBot:Action_UseAbilityOnEntity( abilityLB, castLBTarget );
-		return;
-	end
+    local MissileDamage = abilityMissile:GetAbilityDamage();
+    local MissileCastRange = abilityMissile:GetCastRange();
 
-	if ( castLSADesire > 0 ) 
-	then
-		npcBot:Action_UseAbilityOnLocation( abilityLSA, castLSALocation );
-		return;
-	end
-
-	if ( castDSDesire > 0 ) 
-	then
-		npcBot:Action_UseAbilityOnLocation( abilityDS, castDSLocation );
-		return;
-	end
-
-    --print("desires: " .. castLBDesire .. " " .. castLSADesire .. " " .. castDSDesire);
+    local MoMDamage = abilityMoM:GetAbilityDamage();
 
     --If we dont cast ability, just try to last hit.
 
@@ -171,17 +158,53 @@ local function ConsiderAttackCreeps()
         
     end
 
+    -- CastMoM
+    if(EnemyCreeps ~= nil) then
+        if(#EnemyCreeps >=3 and abilityMoM:IsFullyCastable() and MoMDamage >= 24) then
+            npcBot:Action_UseAbilityOnLocation(abilityMoM,npcBot:GetLocation() + Vector(5,-5));
+            return;
+        end
+    end
+
     -- nothing to do , try to attack heros
 
-    local NearbyEnemyHeroes = npcBot:GetNearbyHeroes( 700, true, BOT_MODE_NONE );
+    local NearbyEnemyHeroes = npcBot:GetNearbyHeroes( 1600, true, BOT_MODE_NONE );
     if(NearbyEnemyHeroes ~= nil) then
+        if(#NearbyEnemyHeroes > 0 and abilityMissile:IsFullyCastable() and MissileDamage > 300) then
+            npcBot:Action_UseAbility(abilityMissile);
+            return;
+        end
+
+
         for _,npcEnemy in pairs( NearbyEnemyHeroes )
         do
-            if(DotaBotUtility.NilOrDead(npcBot:GetAttackTarget())) then
+            if(CanCastOnTarget(npcEnemy)) then
+                if(npcEnemy:GetActualDamage(MissileDamage,DAMAGE_TYPE_MAGICAL) >= npcEnemy:GetHealth()) then
+                    npcBot:Action_UseAbility(abilityMissile);
+                    return;
+                end
+
+                if(npcEnemy:GetActualDamage(LaserDamage,DAMAGE_TYPE_PURE) >= npcEnemy:GetHealth()) then
+                    npcBot:Action_UseAbilityOnEntity(abilityLaser,npcEnemy);
+                    return;
+                end
+
+                if(LaserDamage > 300 and GetUnitToUnitDistance(npcBot,npcEnemy) <= LaserCastRange) then
+                    npcBot:Action_UseAbilityOnEntity(abilityLaser,npcEnemy);
+                    return;
+                end
+            end
+
+            if(DotaBotUtility.NilOrDead(npcBot:GetAttackTarget()) and GetUnitToUnitDistance(npcBot,npcEnemy) <= 600) then
                 npcBot:Action_AttackUnit(npcEnemy,false);
                 return;
             end
         end
+    end
+
+    if(abilityRearm:IsFullyCastable() and TinkerConsiderRearm()) then
+        npcBot:Action_UseAbility(abilityRearm);
+        return;
     end
     
 end
@@ -189,8 +212,8 @@ end
 local function ShouldRetreat()
     local npcBot = GetBot();
     return npcBot:GetHealth()/npcBot:GetMaxHealth() 
-    < LinaRetreatHPThreshold or npcBot:GetMana()/npcBot:GetMaxMana() 
-    < LinaRetreatMPThreshold;
+    < TinkerRetreatHPThreshold or npcBot:GetMana()/npcBot:GetMaxMana() 
+    < TinkerRetreatMPThreshold;
 end
 
 local function IsTowerAttackingMe()
@@ -266,6 +289,8 @@ local function StateAttackingCreep(StateMachine)
 
     local creeps = npcBot:GetNearbyCreeps(1000,true);
     local pt = DotaBotUtility:GetComfortPoint(creeps,LANE);
+
+    if ( npcBot:IsUsingAbility() or npcBot:IsChanneling()) then return end;
 
     if(ShouldRetreat()) then
         StateMachine.State = STATE_RETREAT;
@@ -367,99 +392,60 @@ local function StateFighting(StateMachine)
         StateMachine.State = STATE_IDLE;
         return;
     else
-        if ( npcBot:IsUsingAbility() ) then return end;
+        if ( npcBot:IsUsingAbility() or npcBot:IsChanneling()) then return end;
 
-        local cyclone = DotaBotUtility.IsItemAvailable("item_cyclone");
+        local abilityLaser = npcBot:GetAbilityByName( "tinker_laser" );
+        local abilityMissile = npcBot:GetAbilityByName( "tinker_heat_seeking_missile" );
+        local abilityMoM = npcBot:GetAbilityByName( "tinker_march_of_the_machines" );
+        local abilityRearm = npcBot:GetAbilityByName( "tinker_rearm" );
 
-        if(cyclone ~= nil) then
-            if(ConsiderCyclone(cyclone,StateMachine["EnemyToKill"])) then
-                npcBot:Action_UseAbilityOnEntity(cyclone,StateMachine["EnemyToKill"]);
-                StateMachine["cyclone dota time"] = GameTime();
-                return;
-            elseif(cyclone:IsFullyCastable()) then
-                -- move closer to cast cyclone
-                npcBot:Action_MoveToLocation(StateMachine["EnemyToKill"]:GetLocation());
-                return;
-            end
-        end
+        local LaserDamage = abilityLaser:GetAbilityDamage();
+        local LaserCastRange = abilityLaser:GetCastRange();
 
-        local abilityLSA = npcBot:GetAbilityByName( "lina_light_strike_array" );
-        local abilityDS = npcBot:GetAbilityByName( "lina_dragon_slave" );
-        local abilityLB = npcBot:GetAbilityByName( "lina_laguna_blade" );
+        local MissileDamage = abilityMissile:GetAbilityDamage();
+        local MissileCastRange = abilityMissile:GetCastRange();
 
-        local Lina_Cyclone_LSA_Combo_Delay = 1.5;
-
-        if(StateMachine["cyclone dota time"] ~= nil) then
-            -- Consider LSA after cyclone
-            -- Cast LSA 0.5s before cyclone ends
-            if(abilityLSA:IsFullyCastable() and GameTime() - StateMachine["cyclone dota time"] > Lina_Cyclone_LSA_Combo_Delay) then
-                if(DotaBotUtility.AbilityOutOfRange4Unit(abilityLSA,StateMachine["EnemyToKill"])) then
-                    -- move closer to cast LSA
-                    npcBot:Action_MoveToLocation(StateMachine["EnemyToKill"]:GetLocation());
-                    return;
-                else
-                    npcBot:Action_UseAbilityOnLocation( abilityLSA, StateMachine["EnemyToKill"]:GetLocation());
-                    StateMachine["cyclone dota time"] = nil;
-                    return;
-                end
-            elseif(abilityLSA:IsFullyCastable() and GameTime() - StateMachine["cyclone dota time"] < Lina_Cyclone_LSA_Combo_Delay) then
-                if(DotaBotUtility.AbilityOutOfRange4Unit(abilityLSA,StateMachine["EnemyToKill"])) then
-                    -- move closer to cast LSA
-                    npcBot:Action_MoveToLocation(StateMachine["EnemyToKill"]:GetLocation());
-                    return;
-                end
-            end
-        end
-        
-
-        -- Consider using each ability
-        
-        local castLBDesire, castLBTarget = ConsiderLagunaBlade(abilityLB);
-        local castLSADesire, castLSALocation = ConsiderLightStrikeArrayFighting(abilityLSA,StateMachine["EnemyToKill"]);
-        local castDSDesire, castDSLocation = ConsiderDragonSlaveFighting(abilityDS,StateMachine["EnemyToKill"]);
-
-        if ( castLBDesire > 0 ) 
-        then
-            npcBot:Action_UseAbilityOnEntity( abilityLB, castLBTarget );
-            return;
-        end
-
-        if ( castLSADesire > 0 ) 
-        then
-            npcBot:Action_UseAbilityOnLocation( abilityLSA, castLSALocation );
-            return;
-        end
-
-        if ( castDSDesire > 0 ) 
-        then
-            npcBot:Action_UseAbilityOnLocation( abilityDS, castDSLocation );
-            return;
-        end
+        local MoMDamage = abilityMoM:GetAbilityDamage();
 
         -- LSA is castable but out of range, get closer!--
-        if(abilityLSA:IsFullyCastable() and CanCastLightStrikeArrayOnTarget(StateMachine["EnemyToKill"])) then
-            npcBot:Action_MoveToLocation(StateMachine["EnemyToKill"]:GetLocation());
-            return;
-        end
-
-        if(not abilityLSA:IsFullyCastable() and 
-        not abilityDS:IsFullyCastable() or StateMachine["EnemyToKill"]:IsMagicImmune()) then
-            local extraHP = 0;
-            if(abilityLB:IsFullyCastable()) then
-                local LBnDamage = abilityLB:GetSpecialValueInt( "damage" );
-                local LBeDamageType = npcBot:HasScepter() and DAMAGE_TYPE_PURE or DAMAGE_TYPE_MAGICAL;
-                extraHP = StateMachine["EnemyToKill"]:GetActualDamage(LBnDamage,LBeDamageType);
+        if(CanCastOnTarget(StateMachine["EnemyToKill"])) then
+            if(abilityLaser:IsFullyCastable()) then
+                if(GetUnitToUnitDistance(npcBot,StateMachine["EnemyToKill"]) < LaserCastRange) then
+                    npcBot:Action_UseAbilityOnEntity(abilityLaser,StateMachine["EnemyToKill"]);
+                else
+                    npcBot:Action_MoveToLocation(StateMachine["EnemyToKill"]:GetLocation());
+                    return;
+                end
             end
 
-            if(StateMachine["EnemyToKill"]:GetHealth() - extraHP > npcBot:GetHealth()) then
-                StateMachine.State = STATE_RUN_AWAY;
+            if(abilityMissile:IsFullyCastable()) then
+                npcBot:Action_UseAbility(abilityMissile);
                 return;
             end
+
+            if(abilityMoM:IsFullyCastable()) then
+                npcBot:Action_UseAbilityOnLocation(abilityMoM,npcBot:GetLocation() + Vector(5,-5));
+                return;
+            end
+        end
+
+
+        
+
+        if(StateMachine["EnemyToKill"]:GetHealth() > npcBot:GetHealth()) then
+            StateMachine.State = STATE_RUN_AWAY;
+            return;
         end
 
 
         if(npcBot:GetAttackTarget() ~= StateMachine["EnemyToKill"]) then
             npcBot:Action_AttackUnit(StateMachine["EnemyToKill"],false);
+            return;
+        end
+
+        if(TinkerConsiderRearm() and abilityRearm:IsFullyCastable()) then
+            npcBot:Action_UseAbility(abilityRearm);
+            return;
         end
 
     end
@@ -521,52 +507,44 @@ StateMachine[STATE_RUN_AWAY] = StateRunAway;
 StateMachine["totalLevelOfAbilities"] = 0;
 
 
-local LinaAbilityPriority = {"lina_laguna_blade",
-"lina_dragon_slave","lina_light_strike_array","lina_fiery_soul"};
-
-local LinaTalents = {
-    [10] = "special_bonus_mp_250",
-    [15] = "bonus_cast_range_125",
-    [20] = "bonus_attack_range_150",
-    [25] = "special_bonus_unique_lina_1"
+local TinkerAbilityMap = {
+    [1] = "tinker_laser",
+    [2] = "tinker_march_of_the_machines",
+    [3] = "tinker_march_of_the_machines",
+    [4] = "tinker_heat_seeking_missile",
+    [5] = "tinker_march_of_the_machines",
+    [6] = "tinker_rearm",
+    [7] = "tinker_march_of_the_machines",
+    [8] = "tinker_heat_seeking_missile",
+    [9] = "tinker_heat_seeking_missile",
+    [10] = "special_bonus_intelligence_8",
+    [11] = "tinker_heat_seeking_missile",
+    [12] = "tinker_rearm",
+    [13] = "tinker_laser",
+    [14] = "tinker_laser",
+    [15] = "special_bonus_spell_amplify_4",
+    [16] = "tinker_laser",
+    [18] = "tinker_rearm",
+    [20] = "special_bonus_cast_range_75",
+    [25] = "special_bonus_unique_tinker"
 };
+
+local TinkerDoneLvlupAbility = {};
+
+for lvl,_ in pairs(TinkerAbilityMap)
+do
+    TinkerDoneLvlupAbility[lvl] = false;
+end
 
 local function ThinkLvlupAbility(StateMachine)
     -- Is there a bug? http://dev.dota2.com/showthread.php?t=274436
     local npcBot = GetBot();
-    --[[
-        npcBot:Action_LevelAbility("lina_laguna_blade");
-    npcBot:Action_LevelAbility("lina_dragon_slave");
-    npcBot:Action_LevelAbility("lina_light_strike_array");
-    npcBot:Action_LevelAbility("lina_fiery_soul");
-    ]]
 
-    --[[
-        for _,AbilityName in pairs(LinaAbilityPriority)
-    do
-        -- USELESS BREAK : because valve does not check ability points
-        if TryToUpgradeAbility(AbilityName) then
-            break;
-        end
-    end
-    ]]   
-
-    --npcBot:Action_LevelAbility("special_bonus_mp_250");
 
     local HeroLevel = PerryGetHeroLevel();
-
-    if(LinaTalents[HeroLevel] ~= nil and StateMachine["totalLevelOfAbilities"] < HeroLevel) then
-        npcBot:Action_LevelAbility(LinaTalents[HeroLevel]);
-        StateMachine["totalLevelOfAbilities"] = StateMachine["totalLevelOfAbilities"] + 1;
-    else
-        for k, ability_name in pairs(LinaAbilityPriority) do
-            local ability = npcBot:GetAbilityByName(ability_name);
-            if (ability:CanAbilityBeUpgraded() and ability:GetLevel()<ability:GetMaxLevel() and StateMachine["totalLevelOfAbilities"] < HeroLevel) then
-                ability:UpgradeAbility();
-                StateMachine["totalLevelOfAbilities"] = StateMachine["totalLevelOfAbilities"] + 1;
-                break;
-            end
-        end
+    if(TinkerDoneLvlupAbility[HeroLevel] == false) then
+        npcBot:Action_LevelAbility(TinkerAbilityMap[HeroLevel]);
+        --TinkerDoneLvlupAbility[HeroLevel] = true;
     end
 end
 
@@ -582,7 +560,7 @@ function Think(  )
     StateMachine[StateMachine.State](StateMachine);
 
     if(PrevState ~= StateMachine.State) then
-        print("Lina bot STATE: "..StateMachine.State);
+        print("Tink bot STATE: "..StateMachine.State);
         PrevState = StateMachine.State;
     end
 	

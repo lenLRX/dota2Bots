@@ -39,7 +39,7 @@ function M:GetNearByPrecursorPointOnLane(Lane,Location)
         local d = (Pos - PointsOnLane[i]):Length2D();
         if(d > prevDist) then
             if i >= 4 then
-                return PointsOnLane[i - 4];
+                return PointsOnLane[i - 4] + RandomVector(50);
             else
                 return PointsOnLane[i - 1];
             end
@@ -64,7 +64,7 @@ function M:GetNearBySuccessorPointOnLane(Lane,Location)
         local d = (Pos - PointsOnLane[i]):Length2D();
         if(d > prevDist) then
             if i <= 96 then
-                return PointsOnLane[i + 4];
+                return PointsOnLane[i + 4] + RandomVector(100);
             else
                 return PointsOnLane[i + 1];
             end
@@ -116,7 +116,7 @@ function M:GetComfortPoint(creeps,LANE)
     local avg_pos_y = y_pos_sum / count;
 
     if(count > 0) then      
-        return self:GetNearByPrecursorPointOnLane(LANE,Vector(avg_pos_x,avg_pos_y));
+        return self:GetNearByPrecursorPointOnLane(LANE,Vector(avg_pos_x,avg_pos_y)) + RandomVector(20);
     else
         return nil;
     end;

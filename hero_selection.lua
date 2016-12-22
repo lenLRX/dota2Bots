@@ -20,7 +20,7 @@ function Think()
 		SelectHero( 6 + offset, "npc_dota_hero_zuus" );
 		SelectHero( 7 + offset, "npc_dota_hero_juggernaut" );
 		SelectHero( 8 + offset, "npc_dota_hero_mirana" );
-		SelectHero( 9 + offset, "npc_dota_hero_nevermore" );
+		SelectHero( 9 + offset, "npc_dota_hero_tinker" );
 	end
 
 end
