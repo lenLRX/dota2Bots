@@ -33,7 +33,6 @@ local function TinkerIsBusy()
     local abilityRearm = npcBot:GetAbilityByName( "tinker_rearm" );
 
     if(LastRearmTime ~= nil) then
-        print("abilityRearm:GetChannelTime()"..abilityRearm:GetChannelTime());
         if(GameTime() - LastRearmTime < abilityRearm:GetChannelTime() + 0.2) then
             return true;
         end
@@ -90,7 +89,6 @@ local function SoulRingReArm()
         else
             npcBot:Action_UseAbility(abilityRearm);
             LastRearmTime = GameTime();
-            print("SoulRingReArm "..LastRearmTime);
             return;
         end
     end
@@ -182,7 +180,7 @@ local function ConsiderAttackCreeps(StateMachine)
         if(lowest_hp < weakest_creep:GetActualDamage(
         npcBot:GetBaseDamage(),DAMAGE_TYPE_PHYSICAL)
         + DotaBotUtility:GetCreepHealthDeltaPerSec(weakest_creep) 
-        * (npcBot:GetAttackPoint() + 500 / 900 - 0.5)) then
+        * (npcBot:GetAttackPoint() / npcBot:GetAttackSpeed() + GetUnitToUnitDistance(npcBot,weakest_creep) / 900)) then
             if(npcBot:GetAttackTarget() == nil) then --StateMachine["attcking creep"]
                 npcBot:Action_AttackUnit(weakest_creep,false);
                 return;
@@ -225,7 +223,7 @@ local function ConsiderAttackCreeps(StateMachine)
         if(DotaBotUtility.NilOrDead(npcBot:GetAttackTarget()) and 
         lowest_hp < weakest_creep:GetActualDamage(
         npcBot:GetBaseDamage(),DAMAGE_TYPE_PHYSICAL) + DotaBotUtility:GetCreepHealthDeltaPerSec(weakest_creep) 
-        * (npcBot:GetAttackPoint() + 500 / 900 - 0.5)
+        * (npcBot:GetAttackPoint() / npcBot:GetAttackSpeed() + GetUnitToUnitDistance(npcBot,weakest_creep) / 900)
          and 
         weakest_creep:GetHealth() / weakest_creep:GetMaxHealth() < 0.5) then
             Attacking_creep = weakest_creep;
@@ -360,6 +358,20 @@ local function StateIdle(StateMachine)
         return;
     end
 
+    -- cast missile
+	local abilityMissile = npcBot:GetAbilityByName( "tinker_heat_seeking_missile" );
+
+    local MissileDamage = abilityMissile:GetAbilityDamage();
+    local MissileCastRange = abilityMissile:GetCastRange();
+
+    local NearbyEnemyHeroes = npcBot:GetNearbyHeroes( 1600, true, BOT_MODE_NONE );
+    if(NearbyEnemyHeroes ~= nil) then
+        if(#NearbyEnemyHeroes > 0 and abilityMissile:IsFullyCastable() and MissileDamage > 300) then
+            npcBot:Action_UseAbility(abilityMissile);
+            return;
+        end
+    end
+
     local travel_boots = DotaBotUtility.IsItemAvailable("item_travel_boots");
 
     -- buy a tp and get out
@@ -370,18 +382,30 @@ local function StateIdle(StateMachine)
             npcBot:Action_PurchaseItem("item_tpscroll");
             return;
         elseif(tpscroll ~= nil and tpscroll:IsFullyCastable()) then
-            local tower = DotaBotUtility:GetFrontTowerAtMid();
+            local tower = DotaBotUtility:GetFrontTowerAt(LANE);
             if(tower ~= nil) then
                 npcBot:Action_UseAbilityOnEntity(tpscroll,tower);
+                return;
+            end
+        elseif(tpscroll ~= nil and not tpscroll:IsCooldownReady()) then
+            print("refresh tpscroll");
+            local abilityRearm = npcBot:GetAbilityByName( "tinker_rearm" );
+            if(abilityRearm:IsFullyCastable()) then
+                npcBot:Action_UseAbility(abilityRearm);
+                LastRearmTime = GameTime();
                 return;
             end
         end
     end
     
     if(travel_boots ~= nil and travel_boots:IsFullyCastable() and npcBot:DistanceFromFountain() == 0) then
-        local tower = DotaBotUtility:GetFrontTowerAtMid();
+        local tower = DotaBotUtility:GetFrontTowerAt(LANE);
         if(tower ~= nil) then
             npcBot:Action_UseAbilityOnEntity(travel_boots,tower);
+            return;
+        else
+            target = DotaBotUtility:GetNearBySuccessorPointOnLane(LANE);
+            npcBot:Action_AttackMove(target);
             return;
         end
     elseif(travel_boots ~= nil and not travel_boots:IsCooldownReady()) then
@@ -394,9 +418,15 @@ local function StateIdle(StateMachine)
             return;
         end
     else
-        target = DotaBotUtility:GetNearBySuccessorPointOnLane(LANE);
-        npcBot:Action_AttackMove(target);
-        return;
+        if(DotaTime() < 20) then
+            local tower = DotaBotUtility:GetFrontTowerAt(LANE);
+            npcBot:Action_MoveToLocation(tower:GetLocation());
+            return;
+        else
+            target = DotaBotUtility:GetNearBySuccessorPointOnLane(LANE);
+            npcBot:Action_AttackMove(target);
+            return;
+        end
     end
     
 
@@ -477,6 +507,20 @@ local function StateRetreat(StateMachine)
         end
     end
 
+    -- cast missile
+	local abilityMissile = npcBot:GetAbilityByName( "tinker_heat_seeking_missile" );
+
+    local MissileDamage = abilityMissile:GetAbilityDamage();
+    local MissileCastRange = abilityMissile:GetCastRange();
+
+    local NearbyEnemyHeroes = npcBot:GetNearbyHeroes( 1600, true, BOT_MODE_NONE );
+    if(NearbyEnemyHeroes ~= nil) then
+        if(#NearbyEnemyHeroes > 0 and abilityMissile:IsFullyCastable() and MissileDamage > 300) then
+            npcBot:Action_UseAbility(abilityMissile);
+            return;
+        end
+    end
+
     
 
     if(npcBot:GetHealth() == npcBot:GetMaxHealth() and npcBot:GetMana() == npcBot:GetMaxMana()) then
@@ -522,6 +566,20 @@ local function StateGotoComfortPoint(StateMachine)
     else
         StateMachine.State = STATE_IDLE;
         return;
+    end
+
+    -- cast missile
+	local abilityMissile = npcBot:GetAbilityByName( "tinker_heat_seeking_missile" );
+
+    local MissileDamage = abilityMissile:GetAbilityDamage();
+    local MissileCastRange = abilityMissile:GetCastRange();
+
+    local NearbyEnemyHeroes = npcBot:GetNearbyHeroes( 1600, true, BOT_MODE_NONE );
+    if(NearbyEnemyHeroes ~= nil) then
+        if(#NearbyEnemyHeroes > 0 and abilityMissile:IsFullyCastable() and MissileDamage > 300) then
+            npcBot:Action_UseAbility(abilityMissile);
+            return;
+        end
     end
 
 end
@@ -727,5 +785,8 @@ function Think(  )
         print("Tink bot STATE: "..StateMachine.State);
         PrevState = StateMachine.State;
     end
-	
+
+    -- not working!
+    --local cp = DotaBotUtility:GetFrontTowerAt(LANE):GetNearbyCreeps(1000,false);
+
 end

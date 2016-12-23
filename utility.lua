@@ -146,18 +146,36 @@ function M:CourierThink()
     end
 end
 
-function M:GetFrontTowerAtMid()
-    local tower = GetTower(GetTeam(),TOWER_MID_1);
+function M:GetFrontTowerAt(LANE)
+    local T1 = -1;
+    local T2 = -1;
+    local T3 = -1;
+
+    if(LANE == LANE_TOP) then
+        T1 = TOWER_TOP_1;
+        T2 = TOWER_TOP_2;
+        T3 = TOWER_TOP_3;
+    elseif(LANE == LANE_MID) then
+        T1 = TOWER_MID_1;
+        T2 = TOWER_MID_2;
+        T3 = TOWER_MID_3;
+    elseif(LANE == LANE_BOT) then
+        T1 = TOWER_BOT_1;
+        T2 = TOWER_BOT_2;
+        T3 = TOWER_BOT_3;
+    end
+
+    local tower = GetTower(GetTeam(),T1);
     if(tower ~= nil and tower:IsAlive())then
         return tower;
     end
 
-    tower = GetTower(GetTeam(),TOWER_MID_2);
+    tower = GetTower(GetTeam(),T2);
     if(tower ~= nil and tower:IsAlive())then
         return tower;
     end
 
-    tower = GetTower(GetTeam(),TOWER_MID_3);
+    tower = GetTower(GetTeam(),T3);
     if(tower ~= nil and tower:IsAlive())then
         return tower;
     end
@@ -165,6 +183,7 @@ function M:GetFrontTowerAtMid()
 end
 
 function M:CreepGC()
+    -- does it works? i don't know
     print("CreepGC");
     local swp_table = {}
     for handle,time_health in pairs(self["creeps"])
@@ -235,7 +254,6 @@ function M:GetCreepHealthDeltaPerSec(creep)
             -- only Consider very recent datas
             if(GameTime() - _time < 3) then
                 local e = (_health - creep:GetHealth()) / (GameTime() - _time);
-                print("esstimation: " .. e);
                 return e;
             end
         end

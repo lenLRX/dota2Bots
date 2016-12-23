@@ -6,6 +6,8 @@ local tableItemsToBuy = {
 				"item_circlet",
 				"item_recipe_null_talisman",
 				"item_boots",
+				"item_sobi_mask",
+				"item_ring_of_protection",
 				"item_staff_of_wizardry",
 				"item_wind_lace",
 				"item_void_stone",

@@ -39,7 +39,7 @@ end
 
 ----------------- local utility functions reordered for lua local visibility--------
 --Perry's code from http://dev.dota2.com/showthread.php?t=274837
-local function PerryGetHeroLevel()
+function PerryGetHeroLevel()
     local npcBot = GetBot();
     local respawnTable = {8, 10, 12, 14, 16, 26, 28, 30, 32, 34, 36, 46, 48, 50, 52, 54, 56, 66, 70, 74, 78,  82, 86, 90, 100};
     local nRespawnTime = npcBot:GetRespawnTime() +1 -- It gives 1 second lower values.
@@ -47,6 +47,19 @@ local function PerryGetHeroLevel()
         if v == nRespawnTime then
         return k
         end
+    end
+end
+
+function GetTGWdamage()
+    local HeroLevel = PerryGetHeroLevel();
+    if(HeroLevel < 6) then
+        return 0;
+    elseif(HeroLevel < 12) then
+        return 225;
+    elseif(HeroLevel < 18) then
+        return 325;
+    else
+        return 425;
     end
 end
 
@@ -94,7 +107,7 @@ local function ConsiderAttackCreeps()
     local LBdamage = abilityLB:GetAbilityDamage();
     local LBcastRange = abilityLB:GetCastRange();
 
-    local TGWdamage = abilityTGW:GetAbilityDamage();
+    local TGWdamage = GetTGWdamage();
 
     if(abilityAL:IsFullyCastable()) then
         for _,creep in pairs(EnemyCreeps)
@@ -164,7 +177,7 @@ local function StateIdle(StateMachine)
     local creeps = npcBot:GetNearbyCreeps(1000,true);
     local pt = DotaBotUtility:GetComfortPoint(creeps,LANE);
 
-    
+    if ( npcBot:IsUsingAbility() or npcBot:IsChanneling()) then return end;
 
     if(ShouldRetreat()) then
         StateMachine.State = STATE_RETREAT;
@@ -195,9 +208,31 @@ local function StateIdle(StateMachine)
         return;
     end
 
-    --target = GetLocationAlongLane(LANE,0.95);
-    target = DotaBotUtility:GetNearBySuccessorPointOnLane(LANE);
-    npcBot:Action_AttackMove(target);
+    -- buy a tp and get out
+    if(npcBot:DistanceFromFountain() < 100 and DotaTime() > 0) then
+        local tpscroll = DotaBotUtility.IsItemAvailable("item_tpscroll");
+        if(tpscroll == nil and DotaBotUtility:HasEmptySlot() and npcBot:GetGold() >= GetItemCost("item_tpscroll")) then
+            print("buying tp");
+            npcBot:Action_PurchaseItem("item_tpscroll");
+            return;
+        elseif(tpscroll ~= nil and tpscroll:IsFullyCastable()) then
+            local tower = DotaBotUtility:GetFrontTowerAt(LANE);
+            if(tower ~= nil) then
+                npcBot:Action_UseAbilityOnEntity(tpscroll,tower);
+                return;
+            end
+        end
+    end
+
+    if(DotaTime() < 20) then
+        local tower = DotaBotUtility:GetFrontTowerAt(LANE);
+        npcBot:Action_MoveToLocation(tower:GetLocation());
+        return;
+    else
+        target = DotaBotUtility:GetNearBySuccessorPointOnLane(LANE);
+        npcBot:Action_AttackMove(target);
+        return;
+    end
     
 
 end
@@ -208,6 +243,8 @@ local function StateAttackingCreep(StateMachine)
         StateMachine.State = STATE_IDLE;
         return;
     end
+
+    if ( npcBot:IsUsingAbility() or npcBot:IsChanneling()) then return end;
 
     local creeps = npcBot:GetNearbyCreeps(1000,true);
     local pt = DotaBotUtility:GetComfortPoint(creeps,LANE);
@@ -241,6 +278,9 @@ local function StateRetreat(StateMachine)
         StateMachine.State = STATE_IDLE;
         return;
     end
+    
+    if ( npcBot:IsUsingAbility() or npcBot:IsChanneling()) then return end;
+
     npcBot:Action_MoveToLocation(Constant.HomePosition());
 
     if(npcBot:GetHealth() == npcBot:GetMaxHealth() and npcBot:GetMana() == npcBot:GetMaxMana()) then
@@ -255,6 +295,8 @@ local function StateGotoComfortPoint(StateMachine)
         StateMachine.State = STATE_IDLE;
         return;
     end
+
+    if ( npcBot:IsUsingAbility() or npcBot:IsChanneling()) then return end;
 
     local creeps = npcBot:GetNearbyCreeps(1000,true);
     local pt = DotaBotUtility:GetComfortPoint(creeps,LANE);
@@ -295,6 +337,8 @@ local function StateFighting(StateMachine)
         return;
     end
 
+    if ( npcBot:IsUsingAbility() or npcBot:IsChanneling()) then return end;
+
     if(IsTowerAttackingMe()) then
         StateMachine.State = STATE_RUN_AWAY;
     elseif(not StateMachine["EnemyToKill"]:CanBeSeen() or not StateMachine["EnemyToKill"]:IsAlive()) then
@@ -315,7 +359,9 @@ local function StateFighting(StateMachine)
         local LBdamage = abilityLB:GetAbilityDamage();
         local LBcastRange = abilityLB:GetCastRange();
 
-        local TGWdamage = abilityTGW:GetAbilityDamage();
+        local TGWdamage = GetTGWdamage();
+
+        print("TGWdamage",TGWdamage);
 
         if(abilityAL:IsFullyCastable() and CanCastALOnTarget(StateMachine["EnemyToKill"])) then
             npcBot:Action_UseAbilityOnEntity(abilityAL,StateMachine["EnemyToKill"]);
@@ -360,6 +406,8 @@ local function StateRunAway(StateMachine)
         StateMachine["RunAwayFromLocation"] = nil;
         return;
     end
+
+    if ( npcBot:IsUsingAbility() or npcBot:IsChanneling()) then return end;
 
     if(ShouldRetreat()) then
         StateMachine.State = STATE_RETREAT;
@@ -464,6 +512,10 @@ function Think(  )
     if(PrevState ~= StateMachine.State) then
         print("Zuus bot STATE: "..StateMachine.State);
         PrevState = StateMachine.State;
+    end
+
+    if(DotaTime() > 600) then
+        LANE = LANE_MID;
     end
 	
 end

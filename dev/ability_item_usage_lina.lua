@@ -277,11 +277,11 @@ function ConsiderDragonSlave(abilityDS)
 
 	-- If we're pushing or defending a lane and can hit 4+ creeps, go for it
 	-- wasting mana banned!
-	if (false) 
+	if (nDamage > 300) 
 	then
 		local locationAoE = npcBot:FindAoELocation( true, false, npcBot:GetLocation(), nCastRange, nRadius, 0, 0 );
 
-		if ( locationAoE.count >= 5 ) 
+		if ( locationAoE.count >= 4 ) 
 		then
 			return BOT_ACTION_DESIRE_LOW, locationAoE.targetloc;
 		end

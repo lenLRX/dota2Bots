@@ -75,7 +75,7 @@ local function ConsiderFighting(StateMachine)
 end
 
 
-local function ConsiderAttackCreeps()
+local function ConsiderAttackCreeps(StateMachine)
     -- there are creeps try to attack them --
     --print("ConsiderAttackCreeps");
     local npcBot = GetBot();
@@ -124,6 +124,7 @@ local function ConsiderAttackCreeps()
     do 
         --npcBot:GetEstimatedDamageToTarget
         local creep_name = creep:GetUnitName();
+        DotaBotUtility:UpdateCreepHealth(creep);
         --print(creep_name);
         if(creep:IsAlive()) then
              local creep_hp = creep:GetHealth();
@@ -134,12 +135,31 @@ local function ConsiderAttackCreeps()
          end
     end
 
-    if(weakest_creep ~= nil) then
+    if(weakest_creep ~= nil and weakest_creep:GetHealth() / weakest_creep:GetMaxHealth() < 0.5) then
         -- if creep's hp is lower than 70(because I don't Know how much is my damadge!!), try to last hit it.
-        if(DotaBotUtility.NilOrDead(npcBot:GetAttackTarget()) and 
-        lowest_hp < npcBot:GetEstimatedDamageToTarget( true, weakest_creep, 1.0, DAMAGE_TYPE_PHYSICAL ) + 30) then
-            npcBot:Action_AttackUnit(weakest_creep,true);
-            return;
+        --if(DotaBotUtility.NilOrDead(npcBot:GetAttackTarget()) and 
+        if(lowest_hp < weakest_creep:GetActualDamage(
+        npcBot:GetBaseDamage(),DAMAGE_TYPE_PHYSICAL)
+        + DotaBotUtility:GetCreepHealthDeltaPerSec(weakest_creep) 
+        * (npcBot:GetAttackPoint() / npcBot:GetAttackSpeed() 
+        + GetUnitToUnitDistance(npcBot,weakest_creep) / 1000)) then
+            if(npcBot:GetAttackTarget() == nil) then --StateMachine["attcking creep"]
+                npcBot:Action_AttackUnit(weakest_creep,false);
+                return;
+            elseif(weakest_creep ~= StateMachine["attcking creep"]) then
+                StateMachine["attcking creep"] = weakest_creep;
+                npcBot:Action_AttackUnit(weakest_creep,true);
+                return;
+            end
+        else
+            -- simulation of human attack and stop
+            if(npcBot:GetCurrentActionType() == BOT_ACTION_TYPE_ATTACK) then
+                npcBot:Action_ClearActions(true);
+                return;
+            else
+                npcBot:Action_AttackUnit(weakest_creep,false);
+                return;
+            end
         end
         weakest_creep = nil;
         
@@ -149,6 +169,7 @@ local function ConsiderAttackCreeps()
     do 
         --npcBot:GetEstimatedDamageToTarget
         local creep_name = creep:GetUnitName();
+        DotaBotUtility:UpdateCreepHealth(creep);
         --print(creep_name);
         if(creep:IsAlive()) then
              local creep_hp = creep:GetHealth();
@@ -162,7 +183,11 @@ local function ConsiderAttackCreeps()
     if(weakest_creep ~= nil) then
         -- if creep's hp is lower than 70(because I don't Know how much is my damadge!!), try to last hit it.
         if(DotaBotUtility.NilOrDead(npcBot:GetAttackTarget()) and 
-        lowest_hp < npcBot:GetEstimatedDamageToTarget( true, weakest_creep, 1.0, DAMAGE_TYPE_PHYSICAL ) + 30 and 
+        lowest_hp < weakest_creep:GetActualDamage(
+        npcBot:GetBaseDamage(),DAMAGE_TYPE_PHYSICAL) + DotaBotUtility:GetCreepHealthDeltaPerSec(weakest_creep) 
+        * (npcBot:GetAttackPoint() / npcBot:GetAttackSpeed()
+        + GetUnitToUnitDistance(npcBot,weakest_creep) / 1000)
+         and 
         weakest_creep:GetHealth() / weakest_creep:GetMaxHealth() < 0.5) then
             Attacking_creep = weakest_creep;
             npcBot:Action_AttackUnit(Attacking_creep,true);
@@ -221,7 +246,7 @@ local function StateIdle(StateMachine)
     local creeps = npcBot:GetNearbyCreeps(1000,true);
     local pt = DotaBotUtility:GetComfortPoint(creeps,LANE);
 
-    
+    if ( npcBot:IsUsingAbility() or npcBot:IsChanneling()) then return end;
 
     if(ShouldRetreat()) then
         StateMachine.State = STATE_RETREAT;
@@ -251,9 +276,31 @@ local function StateIdle(StateMachine)
         return;
     end
 
-    --target = GetLocationAlongLane(LANE,0.95);
-    target = DotaBotUtility:GetNearBySuccessorPointOnLane(LANE);
-    npcBot:Action_AttackMove(target);
+    -- buy a tp and get out
+    if(npcBot:DistanceFromFountain() < 100 and DotaTime() > 0) then
+        local tpscroll = DotaBotUtility.IsItemAvailable("item_tpscroll");
+        if(tpscroll == nil and DotaBotUtility:HasEmptySlot() and npcBot:GetGold() >= GetItemCost("item_tpscroll")) then
+            print("buying tp");
+            npcBot:Action_PurchaseItem("item_tpscroll");
+            return;
+        elseif(tpscroll ~= nil and tpscroll:IsFullyCastable()) then
+            local tower = DotaBotUtility:GetFrontTowerAt(LANE);
+            if(tower ~= nil) then
+                npcBot:Action_UseAbilityOnEntity(tpscroll,tower);
+                return;
+            end
+        end
+    end
+
+    if(DotaTime() < 20) then
+        local tower = DotaBotUtility:GetFrontTowerAt(LANE);
+        npcBot:Action_MoveToLocation(tower:GetLocation());
+        return;
+    else
+        target = DotaBotUtility:GetNearBySuccessorPointOnLane(LANE);
+        npcBot:Action_AttackMove(target);
+        return;
+    end
     
 
 end
@@ -267,6 +314,8 @@ local function StateAttackingCreep(StateMachine)
 
     local creeps = npcBot:GetNearbyCreeps(1000,true);
     local pt = DotaBotUtility:GetComfortPoint(creeps,LANE);
+
+    if ( npcBot:IsUsingAbility() or npcBot:IsChanneling()) then return end;
 
     if(ShouldRetreat()) then
         StateMachine.State = STATE_RETREAT;
@@ -282,7 +331,7 @@ local function StateAttackingCreep(StateMachine)
         if(d > 250) then
             StateMachine.State = STATE_GOTO_COMFORT_POINT;
         else
-            ConsiderAttackCreeps();
+            ConsiderAttackCreeps(StateMachine);
         end
         return;
     else
@@ -298,6 +347,7 @@ local function StateRetreat(StateMachine)
         return;
     end
 
+    if ( npcBot:IsUsingAbility() or npcBot:IsChanneling()) then return end;
     --[[
             I don't know how to Create a object of Location so I borrow one from GetLocation()
 
@@ -320,7 +370,8 @@ local function StateGotoComfortPoint(StateMachine)
 
     local creeps = npcBot:GetNearbyCreeps(1000,true);
     local pt = DotaBotUtility:GetComfortPoint(creeps,LANE);
-    
+
+    if ( npcBot:IsUsingAbility() or npcBot:IsChanneling()) then return end;
 
     if(ShouldRetreat()) then
         StateMachine.State = STATE_RETREAT;
@@ -358,6 +409,8 @@ local function StateFighting(StateMachine)
         return;
     end
 
+    if ( npcBot:IsUsingAbility() or npcBot:IsChanneling()) then return end;
+
     if(IsTowerAttackingMe()) then
         StateMachine["cyclone dota time"] = nil;
         StateMachine.State = STATE_RUN_AWAY;
@@ -368,7 +421,6 @@ local function StateFighting(StateMachine)
         StateMachine.State = STATE_IDLE;
         return;
     else
-        if ( npcBot:IsUsingAbility() ) then return end;
 
         local cyclone = DotaBotUtility.IsItemAvailable("item_cyclone");
 
@@ -475,6 +527,8 @@ local function StateRunAway(StateMachine)
         return;
     end
 
+    if ( npcBot:IsUsingAbility() or npcBot:IsChanneling()) then return end;
+
     if(ShouldRetreat()) then
         StateMachine.State = STATE_RETREAT;
         StateMachine["RunAwayFromLocation"] = nil;
@@ -577,6 +631,10 @@ function Think(  )
     if(PrevState ~= StateMachine.State) then
         print("Lina bot STATE: "..StateMachine.State);
         PrevState = StateMachine.State;
+    end
+
+    if(DotaTime() > 600) then
+        LANE = LANE_MID;
     end
 	
 end
