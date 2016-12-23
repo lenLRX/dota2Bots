@@ -146,4 +146,111 @@ function M:CourierThink()
     end
 end
 
+function M:GetFrontTowerAtMid()
+    local tower = GetTower(GetTeam(),TOWER_MID_1);
+    if(tower ~= nil and tower:IsAlive())then
+        return tower;
+    end
+
+    tower = GetTower(GetTeam(),TOWER_MID_2);
+    if(tower ~= nil and tower:IsAlive())then
+        return tower;
+    end
+
+    tower = GetTower(GetTeam(),TOWER_MID_3);
+    if(tower ~= nil and tower:IsAlive())then
+        return tower;
+    end
+    return nil;
+end
+
+function M:CreepGC()
+    print("CreepGC");
+    local swp_table = {}
+    for handle,time_health in pairs(self["creeps"])
+    do
+        local rm = false;
+        for t,_ in pairs(time_health)
+        do
+            if(GameTime() - t > 60) then
+                rm = true;
+            end
+            break;
+        end
+        if not rm then
+            swp_table[handle] = time_health;
+        end
+    end
+
+    self["creeps"] = swp_table;
+end
+
+function M:UpdateCreepHealth(creep)
+    if self["creeps"] == nil then
+        self["creeps"] = {};
+    end
+
+    if(self["creeps"][creep] == nil) then
+        self["creeps"][creep] = {};
+    end
+    if(creep:GetHealth() < creep:GetMaxHealth()) then
+        self["creeps"][creep][GameTime()] = creep:GetHealth();
+    end
+
+    if(#self["creeps"] > 1000) then
+        self:CreepGC();
+    end
+end
+
+function pairsByKeys(t, f)
+    local a = {}
+    for n in pairs(t) do table.insert(a, n) end
+    table.sort(a, f)
+    local i = 0                 -- iterator variable
+    local iter = function ()    -- iterator function
+       i = i + 1
+       if a[i] == nil then return nil
+       else return a[i], t[a[i]]
+       end
+    end
+    return iter
+end
+
+function sortFunc(a , b)
+    if a < b then 
+        return true
+    end
+end
+
+function M:GetCreepHealthDeltaPerSec(creep)
+    if self["creeps"] == nil then
+        self["creeps"] = {};
+    end
+
+    if(self["creeps"][creep] == nil) then
+        return 10000000;
+    else
+        for _time,_health in pairsByKeys(self["creeps"][creep],sortFunc)
+        do
+            -- only Consider very recent datas
+            if(GameTime() - _time < 3) then
+                local e = (_health - creep:GetHealth()) / (GameTime() - _time);
+                print("esstimation: " .. e);
+                return e;
+            end
+        end
+        return 10000000;
+    end
+
+end
+
+function M:ConsiderRunAway()
+    local npcBot = GetBot();
+    local enemy = npcBot:GetNearbyHeroes( 600, true, BOT_MODE_NONE );
+    if(#enemy > 1 and DotaTime() > 360) then
+        return true;
+    end
+    return false;
+end
+
 return M;

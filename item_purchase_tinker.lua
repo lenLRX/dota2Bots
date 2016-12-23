@@ -12,7 +12,11 @@ local tableItemsToBuy = {
                 "item_recipe_soul_ring",
 				"item_recipe_travel_boots",
 				"item_staff_of_wizardry",
-				"item_recipe_dagon"
+				"item_recipe_dagon",
+				"item_staff_of_wizardry",
+				"item_wind_lace",
+				"item_void_stone",
+				"item_recipe_cyclone"
 			};
 
 

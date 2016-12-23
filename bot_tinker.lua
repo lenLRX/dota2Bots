@@ -26,7 +26,23 @@ local STATE = STATE_IDLE;
 
 MoMradius = 900;
 
-LANE = LANE_MID
+LANE = LANE_MID;
+
+local function TinkerIsBusy()
+    local npcBot = GetBot();
+    local abilityRearm = npcBot:GetAbilityByName( "tinker_rearm" );
+
+    if(LastRearmTime ~= nil) then
+        print("abilityRearm:GetChannelTime()"..abilityRearm:GetChannelTime());
+        if(GameTime() - LastRearmTime < abilityRearm:GetChannelTime() + 0.2) then
+            return true;
+        end
+    end
+
+    local busy = npcBot:IsUsingAbility() or npcBot:IsChanneling() or npcBot:GetCurrentActionType() == BOT_ACTION_TYPE_USE_ABILITY;
+
+    return busy;
+end
 
 local function CanCastOnTarget( npcTarget )
 	return npcTarget:CanBeSeen() and not npcTarget:IsMagicImmune() and not npcTarget:IsInvulnerable();
@@ -74,6 +90,7 @@ local function SoulRingReArm()
         else
             npcBot:Action_UseAbility(abilityRearm);
             LastRearmTime = GameTime();
+            print("SoulRingReArm "..LastRearmTime);
             return;
         end
     end
@@ -116,7 +133,7 @@ local function ConsiderFighting(StateMachine)
 end
 
 
-local function ConsiderAttackCreeps()
+local function ConsiderAttackCreeps(StateMachine)
     -- there are creeps try to attack them --
     --print("ConsiderAttackCreeps");
     local npcBot = GetBot();
@@ -125,7 +142,7 @@ local function ConsiderAttackCreeps()
     local AllyCreeps = npcBot:GetNearbyCreeps(1000,false);
 
     -- Check if we're already using an ability
-	if ( npcBot:IsUsingAbility() or npcBot:IsChanneling()) then return end;
+	if ( TinkerIsBusy()) then return end;
 
     local abilityLaser = npcBot:GetAbilityByName( "tinker_laser" );
 	local abilityMissile = npcBot:GetAbilityByName( "tinker_heat_seeking_missile" );
@@ -148,6 +165,7 @@ local function ConsiderAttackCreeps()
     do 
         --npcBot:GetEstimatedDamageToTarget
         local creep_name = creep:GetUnitName();
+        DotaBotUtility:UpdateCreepHealth(creep);
         --print(creep_name);
         if(creep:IsAlive()) then
              local creep_hp = creep:GetHealth();
@@ -158,12 +176,30 @@ local function ConsiderAttackCreeps()
          end
     end
 
-    if(weakest_creep ~= nil) then
+    if(weakest_creep ~= nil and weakest_creep:GetHealth() / weakest_creep:GetMaxHealth() < 0.5) then
         -- if creep's hp is lower than 70(because I don't Know how much is my damadge!!), try to last hit it.
-        if(DotaBotUtility.NilOrDead(npcBot:GetAttackTarget()) and 
-        lowest_hp < npcBot:GetEstimatedDamageToTarget( true, weakest_creep, 1.0, DAMAGE_TYPE_PHYSICAL ) + 30) then
-            npcBot:Action_AttackUnit(weakest_creep,true);
-            return;
+        --if(DotaBotUtility.NilOrDead(npcBot:GetAttackTarget()) and 
+        if(lowest_hp < weakest_creep:GetActualDamage(
+        npcBot:GetBaseDamage(),DAMAGE_TYPE_PHYSICAL)
+        + DotaBotUtility:GetCreepHealthDeltaPerSec(weakest_creep) 
+        * (npcBot:GetAttackPoint() + 500 / 900 - 0.5)) then
+            if(npcBot:GetAttackTarget() == nil) then --StateMachine["attcking creep"]
+                npcBot:Action_AttackUnit(weakest_creep,false);
+                return;
+            elseif(weakest_creep ~= StateMachine["attcking creep"]) then
+                StateMachine["attcking creep"] = weakest_creep;
+                npcBot:Action_AttackUnit(weakest_creep,true);
+                return;
+            end
+        else
+            -- simulation of human attack and stop
+            if(npcBot:GetCurrentActionType() == BOT_ACTION_TYPE_ATTACK) then
+                npcBot:Action_ClearActions(true);
+                return;
+            else
+                npcBot:Action_AttackUnit(weakest_creep,false);
+                return;
+            end
         end
         weakest_creep = nil;
         
@@ -173,6 +209,7 @@ local function ConsiderAttackCreeps()
     do 
         --npcBot:GetEstimatedDamageToTarget
         local creep_name = creep:GetUnitName();
+        DotaBotUtility:UpdateCreepHealth(creep);
         --print(creep_name);
         if(creep:IsAlive()) then
              local creep_hp = creep:GetHealth();
@@ -186,7 +223,10 @@ local function ConsiderAttackCreeps()
     if(weakest_creep ~= nil) then
         -- if creep's hp is lower than 70(because I don't Know how much is my damadge!!), try to last hit it.
         if(DotaBotUtility.NilOrDead(npcBot:GetAttackTarget()) and 
-        lowest_hp < npcBot:GetEstimatedDamageToTarget( true, weakest_creep, 1.0, DAMAGE_TYPE_PHYSICAL ) + 30 and 
+        lowest_hp < weakest_creep:GetActualDamage(
+        npcBot:GetBaseDamage(),DAMAGE_TYPE_PHYSICAL) + DotaBotUtility:GetCreepHealthDeltaPerSec(weakest_creep) 
+        * (npcBot:GetAttackPoint() + 500 / 900 - 0.5)
+         and 
         weakest_creep:GetHealth() / weakest_creep:GetMaxHealth() < 0.5) then
             Attacking_creep = weakest_creep;
             npcBot:Action_AttackUnit(Attacking_creep,true);
@@ -194,14 +234,6 @@ local function ConsiderAttackCreeps()
         end
         weakest_creep = nil;
         
-    end
-
-    -- CastMoM
-    if(EnemyCreeps ~= nil) then
-        if(#EnemyCreeps >=0 and abilityMoM:IsFullyCastable() and MoMDamage >= 24) then
-            npcBot:Action_UseAbilityOnLocation(abilityMoM,npcBot:GetLocation() + Vector(50,-50));
-            return;
-        end
     end
 
     -- nothing to do , try to attack heros
@@ -240,15 +272,35 @@ local function ConsiderAttackCreeps()
         end
     end
 
+    -- CastMoM
+    if(EnemyCreeps ~= nil) then
+        if(AllyCreeps ~= nil and #AllyCreeps > 0) then
+            if(#EnemyCreeps >=3 and abilityMoM:IsFullyCastable() and MoMDamage >= 24) then
+                npcBot:Action_UseAbilityOnLocation(abilityMoM,npcBot:GetLocation() + Vector(50,-50));
+                return;
+            end
+        else
+            if(#EnemyCreeps >=0 and abilityMoM:IsFullyCastable() and MoMDamage >= 24) then
+                npcBot:Action_UseAbilityOnLocation(abilityMoM,npcBot:GetLocation() + Vector(50,-50));
+                return;
+            end
+        end
+    end
+
     SoulRingReArm();
     
 end
 
 local function ShouldRetreat()
     local npcBot = GetBot();
-    return npcBot:GetHealth()/npcBot:GetMaxHealth() 
-    < TinkerRetreatHPThreshold or npcBot:GetMana()/npcBot:GetMaxMana() 
-    < TinkerRetreatMPThreshold;
+    if(DotaTime() > 360) then
+        return npcBot:GetHealth()/npcBot:GetMaxHealth() 
+        < TinkerRetreatHPThreshold or npcBot:GetMana()/npcBot:GetMaxMana() 
+        < TinkerRetreatMPThreshold;
+    else
+        return npcBot:GetHealth()/npcBot:GetMaxHealth() 
+        < TinkerRetreatHPThreshold;
+    end
 end
 
 local function IsTowerAttackingMe()
@@ -278,12 +330,12 @@ local function StateIdle(StateMachine)
     local creeps = npcBot:GetNearbyCreeps(1000,true);
     local pt = DotaBotUtility:GetComfortPoint(creeps,LANE);
 
-    if ( npcBot:IsUsingAbility() or npcBot:IsChanneling()) then return end;
+    if (TinkerIsBusy()) then return end;
 
     if(ShouldRetreat()) then
         StateMachine.State = STATE_RETREAT;
         return;
-    elseif(IsTowerAttackingMe()) then
+    elseif(IsTowerAttackingMe() or DotaBotUtility:ConsiderRunAway()) then
         StateMachine.State = STATE_RUN_AWAY;
         return;
     elseif(npcBot:GetAttackTarget() ~= nil) then
@@ -318,14 +370,20 @@ local function StateIdle(StateMachine)
             npcBot:Action_PurchaseItem("item_tpscroll");
             return;
         elseif(tpscroll ~= nil and tpscroll:IsFullyCastable()) then
-            npcBot:Action_UseAbilityOnLocation(tpscroll,GetLocationAlongLane(LANE,1));
-            return;
+            local tower = DotaBotUtility:GetFrontTowerAtMid();
+            if(tower ~= nil) then
+                npcBot:Action_UseAbilityOnEntity(tpscroll,tower);
+                return;
+            end
         end
     end
     
     if(travel_boots ~= nil and travel_boots:IsFullyCastable() and npcBot:DistanceFromFountain() == 0) then
-        npcBot:Action_UseAbilityOnLocation(travel_boots,GetLocationAlongLane(LANE,1));
-        return;
+        local tower = DotaBotUtility:GetFrontTowerAtMid();
+        if(tower ~= nil) then
+            npcBot:Action_UseAbilityOnEntity(travel_boots,tower);
+            return;
+        end
     elseif(travel_boots ~= nil and not travel_boots:IsCooldownReady()) then
         --refresh boots
         print("refresh boots");
@@ -354,13 +412,13 @@ local function StateAttackingCreep(StateMachine)
     local creeps = npcBot:GetNearbyCreeps(1000,true);
     local pt = DotaBotUtility:GetComfortPoint(creeps,LANE);
 
-    if ( npcBot:IsUsingAbility() or npcBot:IsChanneling()) then return end;
+    if (TinkerIsBusy()) then return end;
 
     if(npcBot:GetHealth()/npcBot:GetMaxHealth() 
     < TinkerRetreatHPThreshold) then
         StateMachine.State = STATE_RETREAT;
         return;
-    elseif(IsTowerAttackingMe()) then
+    elseif(IsTowerAttackingMe() or DotaBotUtility:ConsiderRunAway()) then
         StateMachine.State = STATE_RUN_AWAY;
     elseif(ConsiderFighting(StateMachine)) then
         StateMachine.State = STATE_FIGHTING;
@@ -368,7 +426,7 @@ local function StateAttackingCreep(StateMachine)
     elseif(#creeps > 0 and pt ~= nil) then
         local mypos = npcBot:GetLocation();
         local d = GetUnitToLocationDistance(npcBot,pt);
-        if(d > 250) then
+        if(d > 200) then
             if(StateMachine["GotoComfortPointTime"] == nil) then
                 StateMachine["GotoComfortPointTime"] = GameTime();
                 return;
@@ -383,7 +441,7 @@ local function StateAttackingCreep(StateMachine)
             end
             
         else
-            ConsiderAttackCreeps();
+            ConsiderAttackCreeps(StateMachine);
         end
         return;
     else
@@ -405,7 +463,7 @@ local function StateRetreat(StateMachine)
             Got Vector from marko.polo at http://dev.dota2.com/showthread.php?t=274301
     ]]
 
-    if ( npcBot:IsUsingAbility() or npcBot:IsChanneling()) then return end;
+    if (TinkerIsBusy()) then return end;
 
     if(npcBot:DistanceFromFountain() > 0) then
         local travel_boots = DotaBotUtility.IsItemAvailable("item_travel_boots");
@@ -437,13 +495,13 @@ local function StateGotoComfortPoint(StateMachine)
     local creeps = npcBot:GetNearbyCreeps(1000,true);
     local pt = DotaBotUtility:GetComfortPoint(creeps,LANE);
     
-    if ( npcBot:IsUsingAbility() or npcBot:IsChanneling()) then return end;
+    if (TinkerIsBusy()) then return end;
 
     if(npcBot:GetHealth()/npcBot:GetMaxHealth() 
     < TinkerRetreatHPThreshold) then
         StateMachine.State = STATE_RETREAT;
         return;
-    elseif(IsTowerAttackingMe()) then
+    elseif(IsTowerAttackingMe() or DotaBotUtility:ConsiderRunAway()) then
         StateMachine.State = STATE_RUN_AWAY;
     elseif(ConsiderFighting(StateMachine)) then
         StateMachine.State = STATE_FIGHTING;
@@ -455,7 +513,7 @@ local function StateGotoComfortPoint(StateMachine)
         --local d = GetUnitToLocationDistance(npcBot,pt);
         local d = (npcBot:GetLocation() - pt):Length2D();
  
-        if (d < 200) then
+        if (d < 100) then
             StateMachine.State = STATE_ATTACKING_CREEP;
         else
             npcBot:Action_MoveToLocation(pt);
@@ -476,9 +534,9 @@ local function StateFighting(StateMachine)
         return;
     end
 
-    if ( npcBot:IsUsingAbility() or npcBot:IsChanneling()) then return end;
+    if (TinkerIsBusy()) then return end;
 
-    if(IsTowerAttackingMe()) then
+    if(IsTowerAttackingMe() or DotaBotUtility:ConsiderRunAway()) then
         StateMachine["cyclone dota time"] = nil;
         StateMachine.State = STATE_RUN_AWAY;
     elseif(not StateMachine["EnemyToKill"]:CanBeSeen() or not StateMachine["EnemyToKill"]:IsAlive()) then
@@ -523,9 +581,6 @@ local function StateFighting(StateMachine)
             end
         end
 
-
-        
-
         if(StateMachine["EnemyToKill"]:GetHealth() > npcBot:GetHealth()) then
             StateMachine.State = STATE_RUN_AWAY;
             return;
@@ -545,7 +600,7 @@ end
 local function StateRunAway(StateMachine)
     local npcBot = GetBot();
 
-    if ( npcBot:IsUsingAbility() or npcBot:IsChanneling()) then return end;
+    if (TinkerIsBusy()) then return end;
 
     if(npcBot:IsAlive() == false) then
         StateMachine.State = STATE_IDLE;
@@ -659,7 +714,7 @@ function Think(  )
 
         if(bottle ~= nil and 
         not npcBot:HasModifier("modifier_bottle_regeneration") 
-        and bottle:IsFullyCastable()
+        and bottle:IsFullyCastable() and bottle:GetCurrentCharges() > 0
         and not (npcBot:IsUsingAbility() or npcBot:IsChanneling())) then
             npcBot:Action_UseAbility(bottle);
             return;

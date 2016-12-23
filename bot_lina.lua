@@ -522,52 +522,44 @@ StateMachine[STATE_RUN_AWAY] = StateRunAway;
 StateMachine["totalLevelOfAbilities"] = 0;
 
 
-local LinaAbilityPriority = {"lina_laguna_blade",
-"lina_dragon_slave","lina_light_strike_array","lina_fiery_soul"};
-
-local LinaTalents = {
+local LinaAbilityMap = {
+    [1] = "lina_dragon_slave",
+    [2] = "lina_light_strike_array",
+    [3] = "lina_dragon_slave",
+    [4] = "lina_fiery_soul",
+    [5] = "lina_dragon_slave",
+    [6] = "lina_laguna_blade",
+    [7] = "lina_dragon_slave",
+    [8] = "lina_light_strike_array",
+    [9] = "lina_light_strike_array",
     [10] = "special_bonus_mp_250",
-    [15] = "bonus_cast_range_125",
-    [20] = "bonus_attack_range_150",
+    [11] = "lina_light_strike_array",
+    [12] = "lina_laguna_blade",
+    [13] = "lina_fiery_soul",
+    [14] = "lina_fiery_soul",
+    [15] = "special_bonus_cast_range_125",
+    [16] = "lina_fiery_soul",
+    [18] = "lina_laguna_blade",
+    [20] = "special_bonus_attack_range_150",
     [25] = "special_bonus_unique_lina_1"
 };
+
+local LinaDoneLvlupAbility = {};
+
+for lvl,_ in pairs(LinaAbilityMap)
+do
+    LinaDoneLvlupAbility[lvl] = false;
+end
 
 local function ThinkLvlupAbility(StateMachine)
     -- Is there a bug? http://dev.dota2.com/showthread.php?t=274436
     local npcBot = GetBot();
-    --[[
-        npcBot:Action_LevelAbility("lina_laguna_blade");
-    npcBot:Action_LevelAbility("lina_dragon_slave");
-    npcBot:Action_LevelAbility("lina_light_strike_array");
-    npcBot:Action_LevelAbility("lina_fiery_soul");
-    ]]
 
-    --[[
-        for _,AbilityName in pairs(LinaAbilityPriority)
-    do
-        -- USELESS BREAK : because valve does not check ability points
-        if TryToUpgradeAbility(AbilityName) then
-            break;
-        end
-    end
-    ]]   
-
-    --npcBot:Action_LevelAbility("special_bonus_mp_250");
 
     local HeroLevel = PerryGetHeroLevel();
-
-    if(LinaTalents[HeroLevel] ~= nil and StateMachine["totalLevelOfAbilities"] < HeroLevel) then
-        npcBot:Action_LevelAbility(LinaTalents[HeroLevel]);
-        StateMachine["totalLevelOfAbilities"] = StateMachine["totalLevelOfAbilities"] + 1;
-    else
-        for k, ability_name in pairs(LinaAbilityPriority) do
-            local ability = npcBot:GetAbilityByName(ability_name);
-            if (ability:CanAbilityBeUpgraded() and ability:GetLevel()<ability:GetMaxLevel() and StateMachine["totalLevelOfAbilities"] < HeroLevel) then
-                ability:UpgradeAbility();
-                StateMachine["totalLevelOfAbilities"] = StateMachine["totalLevelOfAbilities"] + 1;
-                break;
-            end
-        end
+    if(LinaDoneLvlupAbility[HeroLevel] == false) then
+        npcBot:Action_LevelAbility(LinaAbilityMap[HeroLevel]);
+        --LinaDoneLvlupAbility[HeroLevel] = true;
     end
 end
 
