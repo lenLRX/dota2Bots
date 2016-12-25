@@ -222,17 +222,17 @@ end
 local function IsTowerAttackingMe()
     local npcBot = GetBot();
     local NearbyTowers = npcBot:GetNearbyTowers(1000,true);
+    local AllyCreeps = npcBot:GetNearbyCreeps(650,false);
     if(#NearbyTowers > 0) then
         for _,tower in pairs( NearbyTowers)
         do
-            if(GetUnitToUnitDistance(tower,npcBot) < 900 and tower:IsAlive()) then
-                print("Attacked by tower");
+            if(GetUnitToUnitDistance(tower,npcBot) < 900 and tower:IsAlive() and #AllyCreeps <= 2) then
+                print("Lina Attacked by tower");
                 return true;
             end
         end
-    else
-        return false;
     end
+    return false;
 end
 
 -------------------local states-----------------------------------------------------
@@ -289,6 +289,18 @@ local function StateIdle(StateMachine)
                 npcBot:Action_UseAbilityOnEntity(tpscroll,tower);
                 return;
             end
+        end
+    end
+
+    local NearbyTowers = npcBot:GetNearbyTowers(1000,true);
+    local AllyCreeps = npcBot:GetNearbyCreeps(650,false);
+
+    for _,tower in pairs(NearbyTowers)
+    do
+        if(tower:IsAlive() and #AllyCreeps >= 2 and #creeps == 0) then
+            print("Lina attack tower!!!");
+            npcBot:Action_AttackUnit(tower,false);
+            return;
         end
     end
 

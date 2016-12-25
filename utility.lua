@@ -271,4 +271,22 @@ function M:ConsiderRunAway()
     return false;
 end
 
+function M:GetEnemyBots()
+    local myteam = GetTeam();
+    if myteam == TEAM_DIRE then
+        return GetTeamPlayers(TEAM_RADIANT);
+    else
+        return GetTeamPlayers(TEAM_DIRE);
+    end
+end
+
+function M:GetEnemyTeam()
+    local myteam = GetTeam();
+    if myteam == TEAM_DIRE then
+        return TEAM_RADIANT;
+    else
+        return TEAM_DIRE;
+    end
+end
+
 return M;

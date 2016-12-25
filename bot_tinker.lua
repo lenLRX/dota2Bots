@@ -304,17 +304,17 @@ end
 local function IsTowerAttackingMe()
     local npcBot = GetBot();
     local NearbyTowers = npcBot:GetNearbyTowers(1000,true);
+    local AllyCreeps = npcBot:GetNearbyCreeps(650,false);
     if(#NearbyTowers > 0) then
         for _,tower in pairs( NearbyTowers)
         do
-            if(GetUnitToUnitDistance(tower,npcBot) < 900 and tower:IsAlive()) then
-                print("Attacked by tower");
+            if(GetUnitToUnitDistance(tower,npcBot) < 900 and tower:IsAlive() and #AllyCreeps <= 2) then
+                print("Tinker Attacked by tower");
                 return true;
             end
         end
-    else
-        return false;
     end
+    return false;
 end
 
 -------------------local states-----------------------------------------------------
@@ -418,6 +418,18 @@ local function StateIdle(StateMachine)
             return;
         end
     else
+        local NearbyTowers = npcBot:GetNearbyTowers(1000,true);
+        local AllyCreeps = npcBot:GetNearbyCreeps(650,false);
+
+        for _,tower in pairs(NearbyTowers)
+        do
+            if(tower:IsAlive() and #AllyCreeps >= 2 and #creeps == 0) then
+                print("Tinker attack tower!!!");
+                npcBot:Action_AttackUnit(tower,false);
+                return;
+            end
+        end
+
         if(DotaTime() < 20) then
             local tower = DotaBotUtility:GetFrontTowerAt(LANE);
             npcBot:Action_MoveToLocation(tower:GetLocation());

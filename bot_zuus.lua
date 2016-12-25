@@ -361,8 +361,6 @@ local function StateFighting(StateMachine)
 
         local TGWdamage = GetTGWdamage();
 
-        print("TGWdamage",TGWdamage);
-
         if(abilityAL:IsFullyCastable() and CanCastALOnTarget(StateMachine["EnemyToKill"])) then
             npcBot:Action_UseAbilityOnEntity(abilityAL,StateMachine["EnemyToKill"]);
             return;
@@ -507,6 +505,27 @@ function Think(  )
     local npcBot = GetBot();
     DotaBotUtility:CourierThink();
     ThinkLvlupAbility(StateMachine);
+
+    local EnemyBots = DotaBotUtility:GetEnemyBots();
+    local EnemyTeam = DotaBotUtility:GetEnemyTeam();
+    local abilityTGW = npcBot:GetAbilityByName( "zuus_thundergods_wrath" );
+    local TGWdamage = GetTGWdamage();
+
+    if(abilityTGW:IsFullyCastable()
+    and not ( npcBot:IsUsingAbility() or npcBot:IsChanneling())
+    )then
+        for _,idx in pairs(EnemyBots)
+        do
+            local BotHandle = GetTeamMember(EnemyTeam,idx);
+            if(BotHandle ~= nil and BotHandle:IsAlive() and BotHandle:CanBeSeen() 
+            and BotHandle:GetActualDamage(TGWdamage,DAMAGE_TYPE_MAGICAL) 
+            > BotHandle:GetHealth()) then
+                npcBot:Action_UseAbility(abilityTGW);
+                return;
+            end
+        end
+    end
+
     StateMachine[StateMachine.State](StateMachine);
 
     if(PrevState ~= StateMachine.State) then
