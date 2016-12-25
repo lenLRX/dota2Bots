@@ -166,12 +166,12 @@ local function ConsiderAttackCreeps(StateMachine)
         DotaBotUtility:UpdateCreepHealth(creep);
         --print(creep_name);
         if(creep:IsAlive()) then
-             local creep_hp = creep:GetHealth();
-             if(lowest_hp > creep_hp) then
+            local creep_hp = creep:GetHealth();
+            if(lowest_hp > creep_hp) then
                  lowest_hp = creep_hp;
                  weakest_creep = creep;
-             end
-         end
+            end
+        end
     end
 
     if(weakest_creep ~= nil and weakest_creep:GetHealth() / weakest_creep:GetMaxHealth() < 0.5) then
@@ -286,6 +286,25 @@ local function ConsiderAttackCreeps(StateMachine)
     end
 
     SoulRingReArm();
+
+    -- hit creeps to push
+    local TimeNow = DotaTime();
+    for creep_k,creep in pairs(EnemyCreeps)
+    do 
+        local creep_name = creep:GetUnitName();
+        --print(creep_name);
+        if(creep:IsAlive()) then
+            if(TimeNow > 600) then
+                npcBot:Action_AttackUnit(creep,false);
+                return;
+            end
+            local creep_hp = creep:GetHealth();
+            if(lowest_hp > creep_hp) then
+                 lowest_hp = creep_hp;
+                 weakest_creep = creep;
+            end
+        end
+    end
     
 end
 
@@ -419,14 +438,20 @@ local function StateIdle(StateMachine)
         end
     else
         local NearbyTowers = npcBot:GetNearbyTowers(1000,true);
-        local AllyCreeps = npcBot:GetNearbyCreeps(650,false);
+        local AllyCreeps = npcBot:GetNearbyCreeps(800,false);
 
         for _,tower in pairs(NearbyTowers)
         do
-            if(tower:IsAlive() and #AllyCreeps >= 2 and #creeps == 0) then
-                print("Tinker attack tower!!!");
-                npcBot:Action_AttackUnit(tower,false);
-                return;
+            local myDistanceToTower = GetUnitToUnitDistance(npcBot,tower);
+            if(tower:IsAlive() and #AllyCreeps >= 1 and #creeps == 0) then
+                for _,creep in pairs(AllyCreeps)
+                do
+                    if(myDistanceToTower > GetUnitToUnitDistance(creep,tower) + 300) then
+                        print("Lina attack tower!!!");
+                        npcBot:Action_AttackUnit(tower,false);
+                        return;
+                    end
+                end
             end
         end
 
