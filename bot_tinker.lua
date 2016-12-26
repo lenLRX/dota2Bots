@@ -18,6 +18,7 @@ local STATE_FARMING = "STATE_FARMING";
 local STATE_GOTO_COMFORT_POINT = "STATE_GOTO_COMFORT_POINT";
 local STATE_FIGHTING = "STATE_FIGHTING";
 local STATE_RUN_AWAY = "STATE_RUN_AWAY";
+local STATE_TEAM_FIGHTING = "STATE_TEAM_FIGHTING";
 
 local TinkerRetreatHPThreshold = 0.3;
 local TinkerRetreatMPThreshold = 0.2;
@@ -91,6 +92,29 @@ local function SoulRingReArm()
             LastRearmTime = GameTime();
             return;
         end
+    end
+end
+
+local function IsInTeamFight()
+    local npcBot = GetBot();
+    local EnemyCount = 0;
+
+    local EnemyBots = DotaBotUtility:GetEnemyBots();
+    local EnemyTeam = DotaBotUtility:GetEnemyTeam();
+
+    for _,idx in pairs(EnemyBots)
+    do
+        local BotHandle = GetTeamMember(EnemyTeam,idx);
+        if(BotHandle ~= nil and BotHandle:IsAlive() and BotHandle:CanBeSeen() 
+        and GetUnitToUnitDistance(BotHandle,npcBot) < 1000) then
+            EnemyCount = EnemyCount + 1;
+        end
+    end
+
+    if(EnemyCount >= 2)then
+        return true;
+    else
+        return false;
     end
 end
 
@@ -355,6 +379,9 @@ local function StateIdle(StateMachine)
     elseif(IsTowerAttackingMe() or DotaBotUtility:ConsiderRunAway()) then
         StateMachine.State = STATE_RUN_AWAY;
         return;
+    elseif(IsInTeamFight()) then
+        StateMachine.State = STATE_TEAM_FIGHTING;
+        return;
     elseif(npcBot:GetAttackTarget() ~= nil) then
         if(npcBot:GetAttackTarget():IsHero()) then
             StateMachine["EnemyToKill"] = npcBot:GetAttackTarget();
@@ -487,6 +514,9 @@ local function StateAttackingCreep(StateMachine)
         return;
     elseif(IsTowerAttackingMe() or DotaBotUtility:ConsiderRunAway()) then
         StateMachine.State = STATE_RUN_AWAY;
+    elseif(IsInTeamFight()) then
+        StateMachine.State = STATE_TEAM_FIGHTING;
+        return;
     elseif(ConsiderFighting(StateMachine)) then
         StateMachine.State = STATE_FIGHTING;
         return;
@@ -584,6 +614,10 @@ local function StateGotoComfortPoint(StateMachine)
         return;
     elseif(IsTowerAttackingMe() or DotaBotUtility:ConsiderRunAway()) then
         StateMachine.State = STATE_RUN_AWAY;
+        return;
+    elseif(IsInTeamFight()) then
+        StateMachine.State = STATE_TEAM_FIGHTING;
+        return;
     elseif(ConsiderFighting(StateMachine)) then
         StateMachine.State = STATE_FIGHTING;
         return;
@@ -634,6 +668,10 @@ local function StateFighting(StateMachine)
     if(IsTowerAttackingMe() or DotaBotUtility:ConsiderRunAway()) then
         StateMachine["cyclone dota time"] = nil;
         StateMachine.State = STATE_RUN_AWAY;
+        return;
+    elseif(IsInTeamFight()) then
+        StateMachine.State = STATE_TEAM_FIGHTING;
+        return;
     elseif(not StateMachine["EnemyToKill"]:CanBeSeen() or not StateMachine["EnemyToKill"]:IsAlive()) then
         -- lost enemy 
         print("lost enemy");
@@ -654,7 +692,7 @@ local function StateFighting(StateMachine)
 
         local MoMDamage = abilityMoM:GetAbilityDamage();
 
-        -- LSA is castable but out of range, get closer!--
+        -- Laser is castable but out of range, get closer!--
         if(CanCastOnTarget(StateMachine["EnemyToKill"])) then
             if(abilityLaser:IsFullyCastable()) then
                 if(GetUnitToUnitDistance(npcBot,StateMachine["EnemyToKill"]) < LaserCastRange) then
@@ -731,12 +769,61 @@ local function StateRunAway(StateMachine)
     end
 end 
 
--- useless now ignore it
-local function StateFarming(StateMachine)
+local function StateTeamFighting(StateMachine)
     local npcBot = GetBot();
     if(npcBot:IsAlive() == false) then
         StateMachine.State = STATE_IDLE;
         return;
+    end
+
+    if (TinkerIsBusy()) then return end;
+
+    if(IsTowerAttackingMe() or DotaBotUtility:ConsiderRunAway()) then
+        StateMachine.State = STATE_RUN_AWAY;
+    elseif(not StateMachine["EnemyToKill"]:CanBeSeen() or not StateMachine["EnemyToKill"]:IsAlive()) then
+        -- lost enemy 
+        print("lost enemy");
+        StateMachine.State = STATE_IDLE;
+        return;
+    else
+        local abilityLaser = npcBot:GetAbilityByName( "tinker_laser" );
+        local abilityMissile = npcBot:GetAbilityByName( "tinker_heat_seeking_missile" );
+        local abilityMoM = npcBot:GetAbilityByName( "tinker_march_of_the_machines" );
+        local abilityRearm = npcBot:GetAbilityByName( "tinker_rearm" );
+
+        local LaserDamage = abilityLaser:GetAbilityDamage();
+        local LaserCastRange = abilityLaser:GetCastRange();
+
+        local MissileDamage = abilityMissile:GetAbilityDamage();
+        local MissileCastRange = abilityMissile:GetCastRange();
+
+        local MoMDamage = abilityMoM:GetAbilityDamage();
+
+        local EnemyBots = DotaBotUtility:GetEnemyBots();
+        local EnemyTeam = DotaBotUtility:GetEnemyTeam();
+
+        for _,idx in pairs(EnemyBots)
+        do
+            local BotHandle = GetTeamMember(EnemyTeam,idx);
+            if(BotHandle ~= nil and BotHandle:IsAlive() and BotHandle:CanBeSeen()) then
+                local d = GetUnitToUnitDistance(BotHandle,npcBot);
+                if(d < LaserCastRange and abilityLaser:IsFullyCastable()) then
+                    npcBot:Action_UseAbilityOnEntity(abilityLaser,BotHandle);
+                    return;
+                elseif(d < 1000 and abilityMoM:IsFullyCastable()) then
+                    npcBot:Action_UseAbilityOnLocation(abilityMoM,npcBot:GetLocation());
+                    return;
+                elseif(d < 2500) then
+                    npcBot:Action_UseAbility(abilityMissile);
+                    return;
+                end
+            end
+        end
+
+        SoulRingReArm();
+        StateMachine.State = STATE_IDLE;
+        return;
+
     end
 end
 
@@ -748,9 +835,10 @@ StateMachine[STATE_RETREAT] = StateRetreat;
 StateMachine[STATE_GOTO_COMFORT_POINT] = StateGotoComfortPoint;
 StateMachine[STATE_FIGHTING] = StateFighting;
 StateMachine[STATE_RUN_AWAY] = StateRunAway;
+StateMachine[STATE_TEAM_FIGHTING] = StateTeamFighting;
 StateMachine["totalLevelOfAbilities"] = 0;
 
-
+--[[
 local TinkerAbilityMap = {
     [1] = "tinker_laser",
     [2] = "tinker_march_of_the_machines",
@@ -768,6 +856,28 @@ local TinkerAbilityMap = {
     [14] = "tinker_laser",
     [15] = "special_bonus_spell_amplify_4",
     [16] = "tinker_laser",
+    [18] = "tinker_rearm",
+    [20] = "special_bonus_cast_range_75",
+    [25] = "special_bonus_unique_tinker"
+};   
+]]
+local TinkerAbilityMap = {
+    [1] = "tinker_laser",
+    [2] = "tinker_heat_seeking_missile",
+    [3] = "tinker_laser",
+    [4] = "tinker_heat_seeking_missile",
+    [5] = "tinker_laser",
+    [6] = "tinker_rearm",
+    [7] = "tinker_laser",
+    [8] = "tinker_heat_seeking_missile",
+    [9] = "tinker_heat_seeking_missile",
+    [10] = "special_bonus_intelligence_8",
+    [11] = "tinker_march_of_the_machines",
+    [12] = "tinker_rearm",
+    [13] = "tinker_march_of_the_machines",
+    [14] = "tinker_march_of_the_machines",
+    [15] = "special_bonus_spell_amplify_4",
+    [16] = "tinker_march_of_the_machines",
     [18] = "tinker_rearm",
     [20] = "special_bonus_cast_range_75",
     [25] = "special_bonus_unique_tinker"
