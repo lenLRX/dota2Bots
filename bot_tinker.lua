@@ -780,11 +780,6 @@ local function StateTeamFighting(StateMachine)
 
     if(IsTowerAttackingMe() or DotaBotUtility:ConsiderRunAway()) then
         StateMachine.State = STATE_RUN_AWAY;
-    elseif(not StateMachine["EnemyToKill"]:CanBeSeen() or not StateMachine["EnemyToKill"]:IsAlive()) then
-        -- lost enemy 
-        print("lost enemy");
-        StateMachine.State = STATE_IDLE;
-        return;
     else
         local abilityLaser = npcBot:GetAbilityByName( "tinker_laser" );
         local abilityMissile = npcBot:GetAbilityByName( "tinker_heat_seeking_missile" );
