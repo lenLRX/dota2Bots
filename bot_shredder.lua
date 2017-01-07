@@ -88,6 +88,26 @@ local function ConsiderFighting(StateMachine)
     return false;
 end
 
+local function __ConsiderFighting()
+    local ShouldFight = false;
+    local npcBot = GetBot();
+
+    local NearbyEnemyHeroes = npcBot:GetNearbyHeroes( 1000, true, BOT_MODE_NONE );
+    if(NearbyEnemyHeroes ~= nil) then
+        for _,npcEnemy in pairs( NearbyEnemyHeroes )
+        do
+            if(npcBot:WasRecentlyDamagedByHero(npcEnemy,1)) then
+                ShouldFight = true;
+                break;
+            elseif(GetUnitToUnitDistance(npcBot,npcEnemy) < 400) then
+                ShouldFight = true;
+                break;
+            end
+        end
+    end
+    return ShouldFight;
+end
+
 
 local function ConsiderAttackCreeps(StateMachine)
     local npcBot = GetBot();
@@ -197,9 +217,18 @@ local function ConsiderAttackCreeps(StateMachine)
 
     ]]
 
-    
-
-    local pt = GetLaneFrontLocation(DotaBotUtility:GetEnemyTeam(),LANE,-700);
+    if StateMachine["d2lane"] == nil then
+        StateMachine["d2lane"] = 0;
+    end
+    if __ConsiderFighting() then
+        StateMachine["d2lane"] = StateMachine["d2lane"] + 10;
+    else
+        StateMachine["d2lane"] = StateMachine["d2lane"] - 10;
+        if(StateMachine["d2lane"] < 0) then
+            StateMachine["d2lane"] = 0;
+        end
+    end
+    local pt = GetLaneFrontLocation(DotaBotUtility:GetEnemyTeam(),LANE,-700 - StateMachine["d2lane"]);
     npcBot:Action_MoveToLocation(pt);
     return;
     
@@ -255,13 +284,6 @@ local function StateIdle(StateMachine)
     elseif(IsInTeamFight()) then
         StateMachine.State = STATE_TEAM_FIGHTING;
         return;
-    elseif(npcBot:GetAttackTarget() ~= nil) then
-        if(npcBot:GetAttackTarget():IsHero()) then
-            StateMachine["EnemyToKill"] = npcBot:GetAttackTarget();
-            print("auto attacking: "..npcBot:GetAttackTarget():GetUnitName());
-            StateMachine.State = STATE_FIGHTING;
-            return;
-        end
     elseif(ConsiderFighting(StateMachine)) then
         StateMachine.State = STATE_FIGHTING;
         return;

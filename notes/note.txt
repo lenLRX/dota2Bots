@@ -46,3 +46,17 @@ print((Vector(300,400,200)-Vector(200,300,0)):Length2D());  2D Length
 cheats:
 
 dota_bot_give_gold 10000
+
+DQN input
+
+[   General              ]: Match signout:  duration = 2623 (2623.649658) good guys win = 1
+
+lost: [   General              ]: Match signout:  duration = 974 (974.321350) good guys win = 0
+
+Reward = delta_my_hp - delta_enemy_hp + delta_my_tower_hp - delta_enemy_tower_hp
+
+["dota time","my hp","my dmg","enemy can be seen","enemy hp","distance to enemy","my tower hp","enemy tower hp","nearby ally creep","nearby enemy creep"]
+
+["dota time","my hp","my tower hp","enemy tower hp","nearby ally creep","nearby enemy creep"], reward, action(state)
+
+actions [laning,attack,retreat]
