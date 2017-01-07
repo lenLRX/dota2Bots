@@ -7,8 +7,12 @@ function GetDesire()
     return _G.LaningDesire
 end
 
+
+
+end
+
+if (GetTeam() == TEAM_RADIANT ) then
 function OnStart()
     _G.state = "laning"
 end
-
 end

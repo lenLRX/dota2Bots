@@ -39,18 +39,22 @@ function OutputToConsole()
     if LastEnemyHP == nil then
         LastEnemyHP = 600
     end
+
+    if LastEnemyMaxHP == nil then
+        LastEnemyMaxHP = 600
+    end
     
     if(enemyBot ~= nil) then 
         EnemyHP = enemyBot:GetHealth()
-        EnemyMAXHP = enemyBot:GetMaxHealth()
+        EnemyMaxHP = enemyBot:GetMaxHealth()
     else
         EnemyHP = 600
-        EnemyMAXHP = 600
+        EnemyMaxHP = 600
     end
 
     if EnemyHP < 0 then
         EnemyHP = LastEnemyHP
-        EnemyMAXHP = LastEnemyHP
+        EnemyMaxHP = LastEnemyMaxHP
     end
 
 
@@ -78,7 +82,7 @@ function OutputToConsole()
 
     local input = {
         npcBot:GetHealth() / npcBot:GetMaxHealth(),
-        EnemyHP / EnemyMAXHP,
+        EnemyHP / EnemyMaxHP,
         DistanceToLane,
         AllyTower:GetHealth()/1300,
         enemyTower:GetHealth()/1300,
@@ -90,7 +94,7 @@ function OutputToConsole()
 
     print("LenLRX log: ",
         npcBot:GetHealth() / npcBot:GetMaxHealth(),
-        EnemyHP / EnemyMAXHP,
+        EnemyHP / EnemyMaxHP,
         DistanceToLane,
         AllyTower:GetHealth()/1300,
         enemyTower:GetHealth()/1300,
@@ -123,6 +127,7 @@ function OutputToConsole()
     MyLastHP = npcBot:GetHealth()
     AllyTowerLastHP = AllyTower:GetHealth()
     LastEnemyHP = EnemyHP
+    LastEnemyMaxHP = EnemyMaxHP
     MyLastGold = npcBot:GetGold()
 end
 
