@@ -2,7 +2,11 @@ _G.state = "laning"
 
 local Constant = require(GetScriptDirectory().."/dev/constant_each_side")
 local DotaBotUtility = require(GetScriptDirectory().."/utility")
+local para = require(GetScriptDirectory().."/SFDQN")
 local DQN = require(GetScriptDirectory().."/DQN")
+
+DQN:LoadFromTable(para)
+DQN:PrintValidationQ()
 
 LastEnemyHP = 1000
 
@@ -27,7 +31,7 @@ function OutputToConsole()
     local GoldReward = 0
 
     if npcBot:GetGold() - MyLastGold > 5 then
-        GoldReward = (npcBot:GetGold() - MyLastGold) / 100
+        GoldReward = (npcBot:GetGold() - MyLastGold)
     end
 
     if MyLastHP == nil then
@@ -71,21 +75,27 @@ function OutputToConsole()
     local AllyLaneFront = GetLaneFrontLocation(DotaBotUtility:GetEnemyTeam(),LANE_MID,0)
     local EnemyLaneFront = GetLaneFrontLocation(TEAM_RADIANT,LANE_MID,0)
 
-    local DistanceToLane = GetUnitToLocationDistance(npcBot,AllyLaneFront + EnemyLaneFront) / 2 / (7000 * 1.414)
+    local DistanceToLane = GetUnitToLocationDistance(npcBot,AllyLaneFront) * 2
 
-    local Reward = (npcBot:GetHealth() - MyLastHP) 
-    - (EnemyHP - LastEnemyHP)
-    + (AllyTower:GetHealth() - AllyTowerLastHP)
-    - (EnemyTowerHP - LastEnemyTowerHP)
-    - DistanceToLane
+    if LastDistanceToLane == nil then
+        LastDistanceToLane = DistanceToLane
+    end
+
+    local Reward = (npcBot:GetHealth() - MyLastHP) * 10 
+    - (EnemyHP - LastEnemyHP) * 10
+    + (AllyTower:GetHealth() - AllyTowerLastHP) * 10
+    - (EnemyTowerHP - LastEnemyTowerHP) * 10
+    + (LastDistanceToLane - DistanceToLane)
     + GoldReward
+
+    print(GoldReward)
 
     local input = {
         npcBot:GetHealth() / npcBot:GetMaxHealth(),
         EnemyHP / EnemyMaxHP,
         DistanceToLane,
         AllyTower:GetHealth()/1300,
-        enemyTower:GetHealth()/1300,
+        EnemyTowerHP/1300,
         #npcBot:GetNearbyTowers(800,false) / 10,
         #npcBot:GetNearbyCreeps(800,true) / 10
     }
@@ -97,27 +107,46 @@ function OutputToConsole()
         EnemyHP / EnemyMaxHP,
         DistanceToLane,
         AllyTower:GetHealth()/1300,
-        enemyTower:GetHealth()/1300,
+        EnemyTowerHP/1300,
         #npcBot:GetNearbyTowers(800,false) / 10,
         #npcBot:GetNearbyCreeps(800,true) / 10,
         Reward,
         _G.state
     )
 
-    --[[
+    
+    local max_val = -100000
+    local max_idx = -1
+
+    for i = 0 , 2 , 1 do
+        if Q_value[i] > max_val then
+            max_val = Q_value[i]
+            max_idx = i
+        end
+    end
+
+    _G.LaningDesire = 0.0
+    _G.AttackDesire = 0.0
+    _G.RetreatDesire = 0.0
+
+    if max_idx == 0 then
+        _G.LaningDesire = 1.0
+    elseif max_idx == 1 then
+        _G.AttackDesire = 1.0
+    elseif max_idx == 2 then
+        _G.RetreatDesire = 1.0
+    end
+
+    if true then
     print("Q_Values",
     Q_value[0],
     Q_value[1],
-    Q_value[2]
+    Q_value[2],
+    "max_idx:",
+    max_idx
     )
-    ]]
-    
+    end
 
-    local sum = Q_value[0] + Q_value[1] + Q_value[2]
-
-    _G.LaningDesire = Q_value[0] / sum
-    _G.AttackDesire = Q_value[1] / sum
-    _G.RetreatDesire = Q_value[2] / sum
 
 
     if enemyTower:GetHealth() > 0 then
@@ -129,11 +158,19 @@ function OutputToConsole()
     LastEnemyHP = EnemyHP
     LastEnemyMaxHP = EnemyMaxHP
     MyLastGold = npcBot:GetGold()
+    LastDistanceToLane = DistanceToLane
+end
+
+if ( GetTeam() == TEAM_RADIANT ) then
+    LastTime = DotaTime()
 end
 
 
 function BuybackUsageThink()
     if ( GetTeam() == TEAM_RADIANT ) then
-        OutputToConsole()
+        if true or DotaTime() - LastTime > 1 then
+            OutputToConsole()
+            LastTime = DotaTime()
+        end
     end
 end

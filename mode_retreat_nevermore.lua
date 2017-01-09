@@ -5,6 +5,7 @@ math.randomseed(RealTime())
 _G.RetreatDesire = math.random()
 
 function GetDesire()
+    print("_G.RetreatDesire",_G.RetreatDesire)
     return _G.RetreatDesire
 end
 

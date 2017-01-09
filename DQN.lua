@@ -9,7 +9,7 @@ DQN.B2 = {}
 math.randomseed(RealTime())
 
 DQN.input_dim = 7
-DQN.hidden_unit = 20
+DQN.hidden_unit = 200
 DQN.output_dim = 3
 
 for i = 0,DQN.input_dim * DQN.hidden_unit - 1,1 do
@@ -28,7 +28,12 @@ for i = 0, DQN.output_dim - 1, 1 do
     DQN.B2[i] = math.random()
 end
 
-
+function DQN:LoadFromTable(tb)
+    self.W1 = tb.W1
+    self.B1 = tb.B1
+    self.W2 = tb.W2
+    self.B2 = tb.B2
+end
 
 function DQN:ForwardProp(input)
     --print(self)
@@ -58,6 +63,11 @@ function DQN:ForwardProp(input)
     end
 
     return out
+end
+
+function DQN:PrintValidationQ()
+    local Q = self:ForwardProp({1,1,2,1,1,0,0})
+    print("validation Q",Q[0],Q[1],Q[2])
 end
 
 return DQN
