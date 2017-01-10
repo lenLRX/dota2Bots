@@ -8,8 +8,8 @@ DQN.B2 = {}
 
 math.randomseed(RealTime())
 
-DQN.input_dim = 7
-DQN.hidden_unit = 200
+DQN.input_dim = 8
+DQN.hidden_unit = 100
 DQN.output_dim = 3
 
 for i = 0,DQN.input_dim * DQN.hidden_unit - 1,1 do
@@ -66,7 +66,7 @@ function DQN:ForwardProp(input)
 end
 
 function DQN:PrintValidationQ()
-    local Q = self:ForwardProp({1,1,2,1,1,0,0})
+    local Q = self:ForwardProp({1, 1, 20000,2000, 1, 1, 0, 0})
     print("validation Q",Q[0],Q[1],Q[2])
 end
 
