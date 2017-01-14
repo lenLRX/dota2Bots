@@ -10,7 +10,23 @@ DQN:PrintValidationQ()
 
 LastEnemyHP = 1000
 
+EnemyTowerPosition = Vector(1024,320)
+AllyTowerPosition = Vector(-1656,-1512)
+
 LastEnemyTowerHP = 1300
+
+LastDecesion = -1000
+
+DeltaTime = 300 / 2
+
+local function ClipTime(t)
+    local ub = 3
+    if t > ub then
+        return ub
+    else
+        return t
+    end
+end
 
 function OutputToConsole()
     local npcBot = GetBot()
@@ -49,7 +65,7 @@ function OutputToConsole()
     end
 
     if LastEnemyMaxHP == nil then
-        LastEnemyMaxHP = 600
+        LastEnemyMaxHP = 1000
     end
     
     if(enemyBot ~= nil) then 
@@ -58,7 +74,7 @@ function OutputToConsole()
     else
         
         EnemyHP = 600
-        EnemyMaxHP = 600
+        EnemyMaxHP = 1000
     end
 
     if(enemyBot ~= nil and enemyBot:CanBeSeen()) then
@@ -89,27 +105,49 @@ function OutputToConsole()
     local AllyLaneFront = GetLaneFrontLocation(DotaBotUtility:GetEnemyTeam(),LANE_MID,0)
     local EnemyLaneFront = GetLaneFrontLocation(TEAM_RADIANT,LANE_MID,0)
 
-    local DistanceToLane = GetUnitToLocationDistance(npcBot,AllyLaneFront)
+    local DistanceToEnemyLane = GetUnitToLocationDistance(npcBot,EnemyLaneFront)
+    local DistanceToAllyLane = GetUnitToLocationDistance(npcBot,AllyLaneFront)
+
+    local DistanceToEnemyTower = GetUnitToLocationDistance(npcBot,EnemyTowerPosition)
+    local DistanceToAllyTower = GetUnitToLocationDistance(npcBot,AllyTowerPosition)
+
+    local DistanceToLane = (DistanceToEnemyLane + DistanceToAllyLane) / 2
 
     if LastDistanceToLane == nil then
         LastDistanceToLane = DistanceToLane
     end
 
-    local Reward = (npcBot:GetHealth() - MyLastHP) * 10 
-    - (EnemyHP - LastEnemyHP) * 10
-    + (AllyTower:GetHealth() - AllyTowerLastHP) * 10
-    - (EnemyTowerHP - LastEnemyTowerHP) * 10
-    + (LastDistanceToLane - DistanceToLane) / 10
-    + GoldReward * 10
+    local EnemyLocation = enemyBot:GetLocation()
+    local MyLocation = npcBot:GetLocation()
+
+    local Reward = (npcBot:GetHealth() - MyLastHP)
+    - (EnemyHP - LastEnemyHP)
+    + (AllyTower:GetHealth() - AllyTowerLastHP)
+    - (EnemyTowerHP - LastEnemyTowerHP)
+    + GoldReward
 
     local input = {
         npcBot:GetHealth() / npcBot:GetMaxHealth(),
+        npcBot:GetMana(),
+        MyLocation[1],
+        MyLocation[2],
         EnemyHP / EnemyMaxHP,
-        DistanceToLane,
-        DistanceToEnemy,
+        EnemyLocation[1],
+        EnemyLocation[2],
+        EnemyLaneFront[1],
+        EnemyLaneFront[2],
+        AllyLaneFront[1],
+        AllyLaneFront[2],
+        EnemyTowerPosition[1],
+        EnemyTowerPosition[2],
+        AllyTowerPosition[1],
+        AllyTowerPosition[2],
+        ClipTime(npcBot:TimeSinceDamagedByAnyHero()),
+        ClipTime(npcBot:TimeSinceDamagedByTower()),
+        ClipTime(npcBot:TimeSinceDamagedByCreep()),
         AllyTower:GetHealth()/1300,
         EnemyTowerHP/1300,
-        #npcBot:GetNearbyTowers(800,false) / 10,
+        #npcBot:GetNearbyCreeps(800,false) / 10,
         #npcBot:GetNearbyCreeps(800,true) / 10
     }
 
@@ -117,16 +155,32 @@ function OutputToConsole()
 
     print("LenLRX log: ",
         npcBot:GetHealth() / npcBot:GetMaxHealth(),
+        npcBot:GetMana(),
+        MyLocation[1],
+        MyLocation[2],
         EnemyHP / EnemyMaxHP,
-        DistanceToLane,
-        DistanceToEnemy,
+        EnemyLocation[1],
+        EnemyLocation[2],
+        EnemyLaneFront[1],
+        EnemyLaneFront[2],
+        AllyLaneFront[1],
+        AllyLaneFront[2],
+        EnemyTowerPosition[1],
+        EnemyTowerPosition[2],
+        AllyTowerPosition[1],
+        AllyTowerPosition[2],
+        ClipTime(npcBot:TimeSinceDamagedByAnyHero()),
+        ClipTime(npcBot:TimeSinceDamagedByTower()),
+        ClipTime(npcBot:TimeSinceDamagedByCreep()),
         AllyTower:GetHealth()/1300,
         EnemyTowerHP/1300,
-        #npcBot:GetNearbyTowers(800,false) / 10,
+        #npcBot:GetNearbyCreeps(800,false) / 10,
         #npcBot:GetNearbyCreeps(800,true) / 10,
         Reward,
         _G.state
     )
+
+    
 
     
     local max_val = -100000
@@ -139,25 +193,30 @@ function OutputToConsole()
         end
     end
 
-    _G.LaningDesire = 0.0
-    _G.AttackDesire = 0.0
-    _G.RetreatDesire = 0.0
+    if true or DotaTime() - LastDecesion > DeltaTime then
 
-    local e = 0.0
+        _G.LaningDesire = 0.0
+        _G.AttackDesire = 0.0
+        _G.RetreatDesire = 0.0
 
-    --  e-greedy policy
-    if(math.random() < e) then
-        _G.LaningDesire = math.random()
-        _G.AttackDesire = math.random()
-        _G.AttackDesire = math.random()
-    else
-        if max_idx == 0 then
-            _G.LaningDesire = 1.0
-        elseif max_idx == 1 then
-            _G.AttackDesire = 1.0
-        elseif max_idx == 2 then
-            _G.RetreatDesire = 1.0
+        local e = 0.0
+
+        --  e-greedy policy
+        if(math.random() < e) then
+            _G.LaningDesire = math.random()
+            _G.AttackDesire = math.random()
+            _G.AttackDesire = math.random()
+        else
+            if max_idx == 0 then
+                _G.LaningDesire = 1.0
+            elseif max_idx == 1 then
+                _G.AttackDesire = 1.0
+            elseif max_idx == 2 then
+                _G.RetreatDesire = 1.0
+            end
         end
+
+        LastDecesion = DotaTime()
     end
 
     if true then
@@ -169,7 +228,6 @@ function OutputToConsole()
     max_idx
     )
     end
-
 
 
     if enemyTower:GetHealth() > 0 then
