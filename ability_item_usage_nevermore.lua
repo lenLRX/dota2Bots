@@ -4,6 +4,9 @@ local Constant = require(GetScriptDirectory().."/dev/constant_each_side")
 local DotaBotUtility = require(GetScriptDirectory().."/utility")
 local para = require(GetScriptDirectory().."/SFDQN")
 local DQN = require(GetScriptDirectory().."/DQN")
+local ActorDQN = require(GetScriptDirectory().."/ActorDQN")
+require(GetScriptDirectory().."/Comm/interactiveConsole")
+ActorDQN:SetUpNetWork()
 
 DQN:LoadFromTable(para)
 DQN:PrintValidationQ()
@@ -18,6 +21,8 @@ LastEnemyTowerHP = 1300
 LastDecesion = -1000
 
 DeltaTime = 300 / 2
+
+GotOrder = false
 
 local function ClipTime(t)
     local ub = 3
@@ -151,9 +156,14 @@ function OutputToConsole()
         #npcBot:GetNearbyCreeps(800,true) / 10
     }
 
-    local Q_value = DQN:ForwardProp(input)
+    --local Q_value = DQN:ForwardProp(input)
+    local zero_based = {}
+    for k,v in pairs(input) do
+        zero_based[k - 1] = v
+    end
+    --local Q_value = ActorDQN:Predict(zero_based)
 
-    print("LenLRX log: ",
+    local output_str = string.format("LenLRX_log: %f %f %f %f %f %f %f %f %f %f %f %f %f %f %f %f %f %f %f %f %f %f %f %s",
         npcBot:GetHealth() / npcBot:GetMaxHealth(),
         npcBot:GetMana(),
         MyLocation[1],
@@ -180,9 +190,11 @@ function OutputToConsole()
         _G.state
     )
 
-    
+    print(output_str)
 
-    
+    comm.send(output_str)
+
+    --[[
     local max_val = -100000
     local max_idx = -1
 
@@ -218,6 +230,7 @@ function OutputToConsole()
 
         LastDecesion = DotaTime()
     end
+    
 
     if true then
     print("Q_Values",
@@ -228,6 +241,7 @@ function OutputToConsole()
     max_idx
     )
     end
+    ]]
 
 
     if enemyTower:GetHealth() > 0 then
@@ -244,16 +258,37 @@ function OutputToConsole()
 end
 
 if ( GetTeam() == TEAM_RADIANT ) then
-    LastTime = DotaTime()
+    LastTimeOutput = DotaTime()
+end
+
+function ApplyOrder(s)
+    local action = tonumber(s)
+    _G.LaningDesire = 0.0
+    _G.AttackDesire = 0.0
+    _G.RetreatDesire = 0.0
+    if action == 0 then
+        _G.LaningDesire = 1.0
+    elseif action == 1 then
+        _G.AttackDesire = 1.0
+    elseif action == 2 then
+        _G.RetreatDesire = 1.0
+    end
+    print("Apply Order",s)
 end
 
 
 function BuybackUsageThink()
     if ( GetTeam() == TEAM_RADIANT and 
     (GetGameState() == GAME_STATE_GAME_IN_PROGRESS or GetGameState() == GAME_STATE_PRE_GAME) ) then
-        if true or DotaTime() - LastTime > 1 then
+        --print(math.abs(DotaTime() - LastTimeOutput))
+        if math.abs(DotaTime() - LastTimeOutput) > 1 then
             OutputToConsole()
-            LastTime = DotaTime()
+            LastTimeOutput = DotaTime()
         end
+    end
+
+    local msg = comm.receive()
+    if msg then
+        ApplyOrder(msg)
     end
 end

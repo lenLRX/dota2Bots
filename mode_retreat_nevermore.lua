@@ -1,4 +1,4 @@
-if (true and  GetTeam() == TEAM_RADIANT ) then
+if (false and  GetTeam() == TEAM_RADIANT ) then
 
 math.randomseed(RealTime())
 
