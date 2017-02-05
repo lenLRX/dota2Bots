@@ -16,7 +16,7 @@ function Think()
 	elseif ( GetTeam() == TEAM_DIRE )
 	then
 		print( "selecting dire" );
-		SelectHero( 5 + offset, "npc_dota_hero_phantom_assassin" );
+		SelectHero( 5 + offset, "npc_dota_hero_nevermore" );
 		SelectHero( 6 + offset, "npc_dota_hero_sven" );
 		SelectHero( 7 + offset, "npc_dota_hero_sven" );
 		SelectHero( 8 + offset, "npc_dota_hero_sven" );

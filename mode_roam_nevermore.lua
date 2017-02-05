@@ -1,4 +1,3 @@
-if ( GetTeam() == TEAM_RADIANT ) then
 math.randomseed(RealTime())
 
 _G.RoamDesire = math.random()
@@ -9,6 +8,4 @@ end
 
 function OnStart()
     _G.state = "roam"
-end
-
 end

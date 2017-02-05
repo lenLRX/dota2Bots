@@ -5,8 +5,14 @@ local DotaBotUtility = require(GetScriptDirectory().."/utility")
 local para = require(GetScriptDirectory().."/SFDQN")
 local DQN = require(GetScriptDirectory().."/DQN")
 local ActorDQN = require(GetScriptDirectory().."/ActorDQN")
-require(GetScriptDirectory().."/Comm/interactiveConsole")
+local comm_module = require(GetScriptDirectory().."/Comm/dota2comm")
 ActorDQN:SetUpNetWork()
+
+if(GetTeam() == TEAM_RADIANT) then
+    comm = comm_module:new("SFradiant")
+else
+    comm = comm_module:new("SFdire")
+end
 
 DQN:LoadFromTable(para)
 DQN:PrintValidationQ()
@@ -35,13 +41,11 @@ end
 
 function OutputToConsole()
     local npcBot = GetBot()
-    local EnemyBots = DotaBotUtility:GetEnemyBots();
-    local enemyBot = GetTeamMember(TEAM_DIRE,1);
+    local enemyBot = GetUnitList(UNIT_LIST_ENEMY_HEROES)[1]
 
     if(enemyBot ~= nil) then 
         npcBot:SetTarget(enemyBot)
     end
-
     local enemyTower = GetTower(TEAM_DIRE,TOWER_MID_1);
     local AllyTower = GetTower(TEAM_RADIANT,TOWER_MID_1);
 
@@ -58,8 +62,6 @@ function OutputToConsole()
     if MyLastHP == nil then
         MyLastHP = npcBot:GetHealth()
     end
-
-    
 
     if LastEnemyHP == nil then
         LastEnemyHP = 600
@@ -96,7 +98,6 @@ function OutputToConsole()
         EnemyMaxHP = LastEnemyMaxHP
     end
 
-
     if AllyTowerLastHP == nil then
         AllyTowerLastHP = AllyTower:GetHealth()
     end
@@ -106,7 +107,6 @@ function OutputToConsole()
     else
         EnemyTowerHP = LastEnemyTowerHP
     end
-
     local AllyLaneFront = GetLaneFrontLocation(DotaBotUtility:GetEnemyTeam(),LANE_MID,0)
     local EnemyLaneFront = GetLaneFrontLocation(TEAM_RADIANT,LANE_MID,0)
 
@@ -122,8 +122,29 @@ function OutputToConsole()
         LastDistanceToLane = DistanceToLane
     end
 
-    local EnemyLocation = enemyBot:GetLocation()
+    if(LastEnemyLocation == nil) then
+        if(GetTeam() == TEAM_RADIANT) then
+            LastEnemyLocation = Vector(6900,6650)
+        else
+            LastEnemyLocation = Vector(-7000,-7000)
+        end
+    end
+
+    local EnemyLocation = Vector(0,0)
+    if(enemyBot~=nil) then
+        EnemyLocation = enemyBot:GetLocation()
+    else
+        EnemyLocation = LastEnemyLocation
+    end
+    
     local MyLocation = npcBot:GetLocation()
+
+    local BotTeam = 0
+    if(GetTeam() == TEAM_RADIANT) then
+        BotTeam = 1
+    else
+        BotTeam = -1
+    end
 
     local Reward = (npcBot:GetHealth() - MyLastHP)
     - (EnemyHP - LastEnemyHP)
@@ -153,7 +174,8 @@ function OutputToConsole()
         AllyTower:GetHealth()/1300,
         EnemyTowerHP/1300,
         #npcBot:GetNearbyCreeps(800,false) / 10,
-        #npcBot:GetNearbyCreeps(800,true) / 10
+        #npcBot:GetNearbyCreeps(800,true) / 10,
+        BotTeam
     }
 
     --local Q_value = DQN:ForwardProp(input)
@@ -163,7 +185,7 @@ function OutputToConsole()
     end
     --local Q_value = ActorDQN:Predict(zero_based)
 
-    local output_str = string.format("LenLRX_log: %f %f %f %f %f %f %f %f %f %f %f %f %f %f %f %f %f %f %f %f %f %f %f %s",
+    local output_str = string.format("LenLRX_log: %f %f %f %f %f %f %f %f %f %f %f %f %f %f %f %f %f %f %f %f %f %f %f %f %s",
         npcBot:GetHealth() / npcBot:GetMaxHealth(),
         npcBot:GetMana(),
         MyLocation[1],
@@ -186,13 +208,14 @@ function OutputToConsole()
         EnemyTowerHP/1300,
         #npcBot:GetNearbyCreeps(800,false) / 10,
         #npcBot:GetNearbyCreeps(800,true) / 10,
+        BotTeam,
         Reward,
         _G.state
     )
 
     print(output_str)
 
-    comm.send(output_str)
+    comm:send(output_str)
 
     --[[
     local max_val = -100000
@@ -255,11 +278,10 @@ function OutputToConsole()
     MyLastGold = npcBot:GetGold()
     LastDistanceToLane = DistanceToLane
     LastDistanceToEnemy = DistanceToEnemy
+    LastEnemyLocation = EnemyLocation
 end
 
-if ( GetTeam() == TEAM_RADIANT ) then
-    LastTimeOutput = DotaTime()
-end
+LastTimeOutput = DotaTime()
 
 function ApplyOrder(s)
     local action = tonumber(s)
@@ -278,8 +300,7 @@ end
 
 
 function BuybackUsageThink()
-    if ( GetTeam() == TEAM_RADIANT and 
-    (GetGameState() == GAME_STATE_GAME_IN_PROGRESS or GetGameState() == GAME_STATE_PRE_GAME) ) then
+    if (GetGameState() == GAME_STATE_GAME_IN_PROGRESS or GetGameState() == GAME_STATE_PRE_GAME) then
         --print(math.abs(DotaTime() - LastTimeOutput))
         if math.abs(DotaTime() - LastTimeOutput) > 1 then
             OutputToConsole()
@@ -287,8 +308,10 @@ function BuybackUsageThink()
         end
     end
 
-    local msg = comm.receive()
+    local msg = comm:receive()
     if msg then
         ApplyOrder(msg)
     end
 end
+
+print("init done")

@@ -1,4 +1,4 @@
-if (false and GetTeam() == TEAM_RADIANT ) then
+if (false) then
 
 math.randomseed(RealTime())
 
@@ -10,10 +10,7 @@ end
 
 end
 
-if (GetTeam() == TEAM_RADIANT ) then
 
 function OnStart()
     _G.state = "attack"
-end
-
 end

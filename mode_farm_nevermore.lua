@@ -1,4 +1,4 @@
-if (false and GetTeam() == TEAM_RADIANT ) then
+if (false) then
 math.randomseed(RealTime())
 
 _G.FarmDesire = math.random()
